@@ -11,7 +11,16 @@
 # Licence:     MIT
 #-------------------------------------------------------------------------------
 
-import maya.cmds as mc 
+from __future__ import division
+import maya.cmds as mc
+import maya.cmds as cmds
+import os
+import maya.OpenMaya as OpenMaya
+import maya.OpenMayaUI as OpenMayaUI
+import maya.OpenMaya as om
+import maya.api.OpenMaya as om2
+import struct
+import glob
 
 # FOLLICLE SECTION __________________________________________________________________
 
@@ -109,8 +118,7 @@ def locatorOnCVs(path_crv):
         
     return locator_list
 
-from __future__ import division
-import maya.cmds as cmds
+
 
 '''
 # Distribute follicles on surface + joints and controls
@@ -744,10 +752,7 @@ def
 # Add turn on Anti Alias
 # setAttr "hardwareRenderingGlobals.lineAAEnable" 1;
 # setAttr "hardwareRenderingGlobals.multiSampleEnable" 1;
-import os
-import maya.cmds as cmds
-import maya.OpenMaya as OpenMaya
-import maya.OpenMayaUI as OpenMayaUI
+
 
 def snapshotMachine(objDistance=100, height=30, sideOffset=0, widthHight=(1000,500)):
     camera = cmds.camera(n="tempCam")
@@ -779,7 +784,6 @@ def snapshotMachine(objDistance=100, height=30, sideOffset=0, widthHight=(1000,5
 
 # Image resize function
 # resizeImage('<sourceImage.png>','<outputImage.png>', 800, 600)
-import maya.OpenMaya as om
 def resizeImage(sourceImage, outputImage, width, height):
 
     image = om.MImage()
@@ -863,9 +867,6 @@ eval('checkAspectLockWidth2 "defaultResolution"')
 # Licence:     MIT
 #-------------------------------------------------------------------------------
 #!/usr/bin/env python
-import os
-import struct
-
 class UnknownImageFormat(Exception):
     pass
 
@@ -1079,10 +1080,6 @@ class replaceReference():
             cmds.hyperShade(assign=self.shader_data[geo + "_Shader"])
             cmds.select(cl=1)
 
-import maya.cmds as cmds
-import glob
-import os
-
 class replaceReference_v2():
     """ This class has the goal of turning current Reference output Geo 
     into rig common geo, importing the latest reference and
@@ -1184,12 +1181,6 @@ class replaceReference_v2():
         self.load_data()
         self.import_latest()
         self.reconnect()
-
-
-
-
-import maya.api.OpenMaya as om2
-import maya.cmds as cmds
 
 # getClosestVertex('Lid_Face_Body_Geo_CH_Custom_Mesh1',pos=[0,0,0])
 def mirror_vertex_selection(vert_list, mesh):

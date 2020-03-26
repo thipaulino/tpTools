@@ -239,12 +239,16 @@ for n, i in enumerate(list1_attr):
 
 # JOINT SECTION __________________________________________________________________
 
-'''
-ikSpline Loft System
-jointChainMultiCrv(addIk=1, bind=1, loft=1, cluster=1, name="PageX2")
-'''
-# Change name to ikLoftSys()
 def jointChainMultiCrv(addIk=0, bind=0, loft=0, cluster=0, name=""):
+    """
+    ikSpline Loft System
+    :param addIk:
+    :param bind:
+    :param loft:
+    :param cluster:
+    :param name:
+    :return:
+    """
     raw_curves = cmds.ls(sl=1)
     curves = []
     ikHandle_list = []
@@ -270,7 +274,8 @@ def jointChainMultiCrv(addIk=0, bind=0, loft=0, cluster=0, name=""):
 
         if addIk == 1:
             # Creating ikSpline - rename curve - append to grouping lists
-            ikHandle_data = cmds.ikHandle(sj=crv_joint_list[0], ee=crv_joint_list[-1], sol="ikSplineSolver", n=i + "_ikHandle")
+            ikHandle_data = cmds.ikHandle(sj=crv_joint_list[0], ee=crv_joint_list[-1], sol="ikSplineSolver",
+                                          n=i + "_ikHandle")
             ik_crv = cmds.rename(ikHandle_data[2], "{}_ikSpline_Crv{}".format(name, n+1))
             ikHandle_list.append(ikHandle_data[0])
             ikSpline_crv_list.append(ik_crv)
@@ -322,10 +327,10 @@ def jointChainMultiCrv(addIk=0, bind=0, loft=0, cluster=0, name=""):
 
     return sys_grp
 
-# jointsOnSelection()
 def jointsOnSelection():
-    """ Creates and places joints on each selection
-    Returns - List of joints created
+    """
+    Creates and places joints on each selection
+    :return List of joints created:
     """
 
     selection = cmds.ls(sl=1)
@@ -345,12 +350,12 @@ def jointsOnSelection():
 
     return joint_list
 
-
-'''
-# Joints on CV's - Select curve, run script
-# jointsOnCVs()
-'''
 def jointsOnCVs(path_crv):
+    """
+    Joints on CV's - Select curve, run script
+    :param path_crv:
+    :return joint_list:
+    """
     cmds.select(cl=1)
     cv_list = cmds.getAttr(path_crv + '.cv[:]')
     joint_list = []
@@ -602,7 +607,7 @@ def setCtrlColor(ctrl, color = (1,1,1)):
     """
     Set control color
     :param ctrl:
-    :param color: 
+    :param color:
     """
     rgb = ("R","G","B")
 
@@ -641,7 +646,8 @@ def getPointOnCurve(crv, parameter, inverse=0):
     mPath_Crv = cmds.duplicate(crv, name='mPath_Temp_Crv')[0]
     cmds.delete(mPath_Crv, ch=1)
 
-    mPath = cmds.pathAnimation(poc_loc, mPath_Crv, n= 'mPath_Temp', fractionMode=1, followAxis= 'x', upAxis= 'y', worldUpType= "vector", inverseUp= inverse, inverseFront= inverse)
+    mPath = cmds.pathAnimation(poc_loc, mPath_Crv, n= 'mPath_Temp', fractionMode=1, followAxis= 'x', upAxis= 'y',
+                               worldUpType= "vector", inverseUp= inverse, inverseFront= inverse)
     cmds.disconnectAttr(mPath + '_uValue.output', mPath + '.uValue')
     cmds.setAttr(mPath + '.uValue', parameter)
 
@@ -670,7 +676,8 @@ def multi_motionpath(name, amount, inverse=0):
     for i in range(int(amount)):
         parameter = crvStep * i
         loc = cmds.spaceLocator(n=name + '_loc' + str(i))
-        mPath = cmds.pathAnimation(loc, mPath_Crv, n=name + '_mPath' + str(i), fractionMode=1, followAxis='x', upAxis='y', worldUpType="vector", inverseUp=inverse, inverseFront=inverse)
+        mPath = cmds.pathAnimation(loc, mPath_Crv, n=name + '_mPath' + str(i), fractionMode=1, followAxis='x',
+                                   upAxis='y', worldUpType="vector", inverseUp=inverse, inverseFront=inverse)
         cmds.disconnectAttr(mPath + '_uValue.output', mPath + '.uValue')
         cmds.setAttr(mPath + '.uValue', parameter)
 
@@ -722,7 +729,8 @@ def param_from_length(curve, count, curve_type = "open", space = "uv", normalize
         max_v = mc.getAttr(curve + ".minMaxValue.maxValue")
         min_v = mc.getAttr(curve + ".minMaxValue.minValue")
 
-        #normalized parameters (before i was just dividing p to max_v. but with weird ranges (ie. 1.4281 to 6.98214) the result is of is not as expected.
+        # Normalized parameters (before i was just dividing p to max_v. but with weird ranges
+        # (ie. 1.4281 to 6.98214) the result is of is not as expected.
         # this also could have been fixed by just rebuilding the surface uniformly)
         data = [normalizer(p, [min_v, max_v], [0, 1]) for p in param]
     else:
@@ -799,7 +807,8 @@ def snapshotMachine(objDistance=100, height=30, sideOffset=0, widthHight=(1000,5
 
     for i in cam_angle:
         cmds.xform(pivot_grp, ro=(0,cam_angle[i],0))
-        cmds.playblast(orn=0, fr=1, p=100, v=0, fo=1, fmt="image", compression="jpg", wh=widthHight, f="C:{}\\Desktop\\{}_{}".format(user_path, raw_name, i))
+        cmds.playblast(orn=0, fr=1, p=100, v=0, fo=1, fmt="image", compression="jpg", wh=widthHight,
+                       f="C:{}\\Desktop\\{}_{}".format(user_path, raw_name, i))
 
     cmds.lookThru(current_cam)
     cmds.delete(pivot_grp)
@@ -1231,7 +1240,8 @@ def getClosestVertex_v2(mayaMesh, pos=[0,0,0]):
     # Getting closest face ID
     face_ID = mMesh.getClosestPoint(om2.MPoint(mVector), space=om2.MSpace.kWorld)[1]
     # Face's vertices list
-    vert_list = cmds.ls(cmds.polyListComponentConversion('{}.f[{}]'.format(mayaMesh, face_ID), ff=True, tv=True), flatten=True)
+    vert_list = cmds.ls(cmds.polyListComponentConversion('{}.f[{}]'.format(mayaMesh, face_ID), ff=True, tv=True),
+                        flatten=True)
 
     # Setting vertex [0] as the closest one
     dist_01 = om2.MVector(cmds.xform(vert_list[0], t=True, ws=True, q=True))
@@ -1266,7 +1276,8 @@ def getClosestVertex(mayaMesh, pos=[0,0,0]):
     # Getting closest face ID
     face_ID = mMesh.getClosestPoint(om2.MPoint(mVector), space=om2.MSpace.kWorld)[1]
     # Face's vertices list
-    vert_list = cmds.ls(cmds.polyListComponentConversion('{}.f[{}]'.format(mayaMesh, face_ID), ff=True, tv=True), flatten=True)
+    vert_list = cmds.ls(cmds.polyListComponentConversion('{}.f[{}]'.format(mayaMesh, face_ID), ff=True, tv=True),
+                        flatten=True)
 
     # Setting vertex [0] as the closest one
     d = mVector - om2.MVector(cmds.xform(vert_list[0], t=True, ws=True, q=True))

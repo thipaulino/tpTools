@@ -1420,22 +1420,75 @@ def rename_sel(old, new):
         name = item.replace(old, new)
         mc.rename(item, name)
 
+
+def list_unique(list):
+    """
+    Find unique items in a list
+    :param list:
+    :return unique items list:
+    """
+    unique_list = []
+
+    # traverse for all elements
+    for x in list:
+        # check if exists in unique_list or not
+        if x not in unique_list:
+            unique_list.append(x)
+
+    return unique_list
+
+
+class RigTemplateLoc:
+    def __init__(self):
+        pass
+
+    def parent_sys(self):
+        pass
+
+    def parent_all(self):
+        pass
+
+
+
+class RigTemplateSys:
+    def __init__(self):
+        pass
+
 class RigTemplate:
 
     def __init__(self):
         self.loc = ''
-        self.metadata = {'parent': '',
-                         'locator': '',
-                         'joint': '',
-                         'position': {'t': '',
-                                      'r': '',
-                                      's': ''},
-                         'avg_vertex': [],
-                         'system': '',
-                         'group': ''}
-
+        self.environment_grp = ''
+        self.environment_metadata = {
+            'systems': []}
+        self.sys_metadata = {
+            'sys_name': '',
+            'locators': []}
+        self.loc_metadata = {
+            'parent': '',
+            'locator_name': '',
+            'index': '',
+            'joint': '',
+            'position': {
+                't': '',
+                'r': '',
+                's': ''},
+            'avg_vertex': [],
+            'system': '',
+            'group': ''}
+        self.current_data = {
+            'system': '',
+            'locator': '',
+            ''
+        }
         self.template_members = []
-        self.current_group = ''
+        self.current_sys = ''
+
+    def build_environment(self):
+        self.environment_grp = mc.group(name='rig_template_grp', em=1)
+        mc.addAttr(self.environment_grp, longName='metadata', dataType='string')
+
+        self.commit_data(self.environment_metadata, self.environment_grp)
 
     def new_loc(self, name='', system=''):
         """
@@ -1446,8 +1499,8 @@ class RigTemplate:
         else:
             self.loc = mc.spaceLocator()[0]
 
-        mc.addAttr(longName='metadata', dataType='string')
-        self.commit_data()
+        mc.addAttr(self.loc, longName='metadata', dataType='string')
+        self.commit_data(self.loc, self.loc_metadata)
 
         mc.parent(self.loc, self.current_group)
         self.update_grp_members()
@@ -1455,20 +1508,24 @@ class RigTemplate:
     def new_grp(self, name):
         pass
 
+    def new_sys(self):
+        pass
+
     def assign_sys(self, system):
-        self.metadata['system'] = system
+        self.loc_metadata['system'] = system
         self.commit_data()
 
     def load_loc(self):
         self.loc = mc.ls(sl=1)[0]
-        self.update_data()
+        self.load_loc_data()
 
     def load_grp(self):
         self.current_group = mc.ls(sl=1)[0]
         self.template_members = mc.listRelatives(self.current_group, c=1)
 
-    def set_parent(self):
-        pass
+    def set_parent(self, parent):
+        self.loc_metadata['parent'] = parent if parent else mc.ls(sl=1)[0]
+        self.commit_data(self.loc, self.loc_metadata)
 
     def parent_chain(self, system):
         pass
@@ -1476,11 +1533,17 @@ class RigTemplate:
     def unparent_chain(self, system):
         pass
 
-    def update_data(self):
-        self.metadata = eval(mc.getAttr('{}.metadata'.format(self.loc)))
+    def load_env_data(self):
+        self.environment_metadata = eval(mc.getAttr('{}.metadata'.format(self.environment_grp)))
 
-    def commit_data(self):
-        mc.setAttr('{}.metadata'.format(self.loc), self.metadata)
+    def load_sys_data(self):
+        self.sys_metadata = eval(mc.getAttr('{}.metadata'.format(self.sys_grp)))
+
+    def load_loc_data(self):
+        self.loc_metadata = eval(mc.getAttr('{}.metadata'.format(self.loc)))
+
+    def commit_data(self, group, data):
+        mc.setAttr('{}.metadata'.format(self.loc), self.loc_metadata, type='string')
 
     def update_grp_members(self):
         self.template_members = mc.listRelatives(self.current_group, c=1)
@@ -1497,13 +1560,16 @@ class RigTemplate:
     def rebuild_sys_from_data(self):
         pass
 
-    def list_systems(self):
-        pass
-
     def reorder_indexes(self):
         """
         Reorder system indexes in selection order
         """
+        pass
+
+    def list_systems(self):
+        pass
+
+    def list_all_loc(self):
         pass
 
 

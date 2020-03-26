@@ -1408,7 +1408,7 @@ class RigTemplate:
         if name:
             self.loc = mc.spaceLocator(name=name)[0]
         else:
-            mc.spaceLocator()[0]
+            self.loc = mc.spaceLocator()[0]
 
         mc.addAttr(longName='metadata', dataType='string')
         self.commit_data()

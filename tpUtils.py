@@ -8,6 +8,7 @@ import maya.OpenMaya as om
 import maya.api.OpenMaya as om2
 import struct
 import glob
+import math
 
 #-------------------------------------------------------------------------------
 # Name:        tp_utilityTools v4
@@ -1437,6 +1438,60 @@ def list_unique(list):
 
     return unique_list
 
+def poleVector_math(dist=0.5):
+    """
+    Calculates the projected vector of a triangle based on
+    3 objects selections and places a locator on the position.
+    :param dist:
+    tags: polevector, pole vector, polevector math
+    """
+    sel = mc.ls(sl=1)
+
+    start = mc.xform(sel[0], q=1, ws=1, t=1)
+    mid = mc.xform(sel[1], q=1, ws=1, t=1)
+    end = mc.xform(sel[2], q=1, ws=1, t=1)
+
+    start_vec = om.MVector(start[0], start[1], start[2])
+    mid_vec = om.MVector(mid[0], mid[1], mid[2])
+    end_vec = om.MVector(end[0], end[1], end[2])
+
+    start_end = end_vec - start_vec
+    start_mid = mid_vec - start_vec
+
+    dot_prod = start_mid * start_end
+    projection = float(dot_prod) / float(start_end.length())
+    start_end_normal = start_end.normal()
+    proj_vector = start_end_normal * projection
+
+    arrow_vec = start_mid - proj_vector
+    arrow_vec *= dist
+    result_vec = arrow_vec + mid_vec
+
+    cross_01 = start_end ^ start_mid
+    cross_01.normalize()
+
+    cross_02 = cross_01 ^ arrow_vec
+    cross_02.normalize()
+
+    arrow_vec.normalize()
+
+    matrix_vec = [arrow_vec.x, arrow_vec.y, arrow_vec.z, 0,
+                  cross_01.x, cross_01.y, cross_01.z, 0,
+                  cross_02.x, cross_02.y, cross_02.z, 0,
+                  0, 0, 0, 1]
+
+    matrix_m = om.MMatrix()
+    om.MScriptUtil.createMatrixFromList(matrix_vec, matrix_m)
+
+    matrix_fn = om.MTransformationMatrix(matrix_m)
+    ro = matrix_fn.eulerRotation()
+
+    loc = mc.spaceLocator()[0]
+    mc.xform(loc, ws=1, t=(result_vec.x, result_vec.y, result_vec.z))
+    mc.xform(loc, ws=1, ro=((ro.x/math.pi*180.0),
+                            (ro.y/math.pi*180.0),
+                            (ro.z/math.pi*180.0)))
+
 
 class RigTemplateLoc:
     def __init__(self):
@@ -1479,7 +1534,6 @@ class RigTemplate:
         self.current_data = {
             'system': '',
             'locator': '',
-            ''
         }
         self.template_members = []
         self.current_sys = ''
@@ -1487,6 +1541,7 @@ class RigTemplate:
     def build_environment(self):
         self.environment_grp = mc.group(name='rig_template_grp', em=1)
         mc.addAttr(self.environment_grp, longName='metadata', dataType='string')
+        mc.addAttr(self.environment_grp, longName='sys_list', attributeTypr='message', multi=True, indexMatters=False)
 
         self.commit_data(self.environment_metadata, self.environment_grp)
 
@@ -1496,6 +1551,7 @@ class RigTemplate:
         """
         if name:
             self.loc = mc.spaceLocator(name=name)[0]
+            mc.addAttr(self.loc, longName='sys_list', attributeTypr='message', multi=True, indexMatters=False)
         else:
             self.loc = mc.spaceLocator()[0]
 
@@ -1504,6 +1560,9 @@ class RigTemplate:
 
         mc.parent(self.loc, self.current_group)
         self.update_grp_members()
+
+    def connect_message(self):
+        pass
 
     def new_grp(self, name):
         pass

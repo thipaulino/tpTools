@@ -1493,81 +1493,139 @@ def poleVector_math(dist=0.5):
                             (ro.z/math.pi*180.0)))
 
 
-class RigTemplateLoc:
-    def __init__(self):
-        pass
-
-    def parent_sys(self):
-        pass
-
-    def parent_all(self):
-        pass
-
-
-
-class RigTemplateSys:
-    def __init__(self):
-        pass
-
 class RigTemplate:
 
     def __init__(self):
+        self.tag_node = 'tp_rigSystems_rigTemplate'
         self.loc = ''
         self.environment_grp = ''
-        self.environment_metadata = {
-            'systems': []}
-        self.sys_metadata = {
-            'sys_name': '',
-            'locators': []}
-        self.loc_metadata = {
-            'parent': '',
-            'locator_name': '',
-            'index': '',
-            'joint': '',
-            'position': {
-                't': '',
-                'r': '',
-                's': ''},
-            'avg_vertex': [],
-            'system': '',
-            'group': ''}
+
+        self.environment_data = {}
+        self.sys_data = {}
+        self.loc_metadata = {}
+        self.tag_data = {}
+
         self.current_data = {
             'system': '',
-            'locator': '',
-        }
-        self.template_members = []
-        self.current_sys = ''
+            'locator': '',}
 
-    def build_environment(self):
-        self.environment_grp = mc.group(name='rig_template_grp', em=1)
-        mc.addAttr(self.environment_grp, longName='metadata', dataType='string')
-        mc.addAttr(self.environment_grp, longName='sys_list', attributeTypr='message', multi=True, indexMatters=False)
+        self.data_templates = {
+            'environment_data': {
+                'name': '',
+                'group': '',
+                'systems': []},
 
-        self.commit_data(self.environment_metadata, self.environment_grp)
+            'sys_data': {
+                'name': '',
+                'group': '',
+                'locators': []},
 
-    def new_loc(self, name='', system=''):
+            'loc_metadata': {
+                'parent': '',
+                'locator_name': '',
+                'index': '',
+                'joint': '',
+                'position': {
+                    't': '',
+                    'r': '',
+                    's': ''},
+                'avg_vertex': [],
+                'system': '',
+                'group': ''},
+
+            'tag_data': {
+                'creation_date': '',
+                'last_modified': '',
+                'original_file': '',
+                'class_version': '',
+                'id': '',
+                'credits': 'Create By Thiago Paulino'}}
+
+        self.init_template_sys()
+
+    def init_template_sys(self):
+        """
+        Initializes system by searching for tag for tp_rigSystems_rigTemplate tag and getting environment
+        if nonexistent, creates tag and environment
+        :return:
+        """
+        if not mc.objExists(self.tag_node):
+            self.tag_node = mc.createNode('controller', name='tp_rigSystems_rigTemplate')
+            mc.addAttr(self.tag_node, longName='metadata', dataType='string')
+            mc.addAttr(self.tag_node, longName='environment_list', attributeType='message', multi=True,
+                       indexMatters=False)
+            self.commit_data(self.tag_node, self.data_templates['tag_data'])
+            self.new_environment()
+
+        self.tag_data = eval(mc.getAttr('{}.metadata'.format(self.tag_node)))
+        self.environment_grp = mc.listConnections('{}.environment_list'.format(self.tag_node), s=1, d=0)[0]
+        self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_grp)))
+
+    def new_environment(self):
+        self.environment_data = self.data_templates['environment_data']
+        self.environment_data['group'] = mc.group(name='rig_template_grp', em=1)
+        mc.connectAttr('{}.message'.format(self.environment_data['group']), '{}.environment_list'.format(self.tag_node),
+                       nextAvailable=True)
+
+        mc.addAttr(self.environment_data['group'], longName='metadata', dataType='string')
+        mc.addAttr(self.environment_data['group'], longName='sys_list', attributeType='message', multi=True,
+                   indexMatters=False)
+        self.commit_data(self.environment_data['group'], self.environment_data)
+
+        self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_data['group'])))
+
+    def new_sys(self, name):
+        self.sys_data = self.data_templates['sys_data']
+        self.sys_data['name'] = name if name else 'tempName'
+        self.sys_data['group'] = mc.group(name='{}_sys_grp'.format(name), empty=True)
+        mc.parent(self.sys_data['group'], self.environment_data['group'])
+        mc.connectAttr('{}.message'.format(self.sys_data['group']), '{}.sys_list'.format(self.environment_data['group']),
+                       nextAvailable=True)
+
+        mc.addAttr(self.sys_data['group'], longName='metadata', dataType='string')
+        mc.addAttr(self.sys_data['group'], longName='loc_list', attributeType='message', multi=True, indexMatters=False)
+        self.commit_data(self.sys_data['group'], self.sys_data)
+
+    def new_loc(self, system):
         """
         Creates new template locator with metadata attribute
         """
-        if name:
-            self.loc = mc.spaceLocator(name=name)[0]
-            mc.addAttr(self.loc, longName='sys_list', attributeTypr='message', multi=True, indexMatters=False)
+        if system:
+            self.load_sys(system)
+
+        if self.current_data['environment']:
+            if self.current_data['system']:
+                self.loc = mc.spaceLocator(name=name)[0]
+                mc.addAttr(self.loc, longName='metadata', dataType='string')
+                mc.addAttr(self.loc, longName='sys_list', attributeType='message', multi=True, indexMatters=False)
+                mc.connectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.current_data['system']),
+                               nextAvailable=True)
+
+                self.update_loc_data()
+                self.commit_data(self.loc, self.loc_metadata)
+
+                mc.parent(self.loc, self.sys_data['group'])
+                self.update_grp_members()
+            else:
+                mc.warning('Please create system before creating locators')
         else:
-            self.loc = mc.spaceLocator()[0]
+            mc.warning('Please initialize environment and system before creating locators')
 
-        mc.addAttr(self.loc, longName='metadata', dataType='string')
-        self.commit_data(self.loc, self.loc_metadata)
+    def load_sys(self):
+        pass
 
-        mc.parent(self.loc, self.current_group)
-        self.update_grp_members()
+    def list_systems(self):
+        data = mc.listConnections('{}.sys_list'.format(self.environment_data['group']))
+        for sys in data:
+            print sys
+
+    def update_loc_data(self):
+        pass
 
     def connect_message(self):
         pass
 
     def new_grp(self, name):
-        pass
-
-    def new_sys(self):
         pass
 
     def assign_sys(self, system):
@@ -1593,16 +1651,16 @@ class RigTemplate:
         pass
 
     def load_env_data(self):
-        self.environment_metadata = eval(mc.getAttr('{}.metadata'.format(self.environment_grp)))
+        self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_data['group'])))
 
     def load_sys_data(self):
-        self.sys_metadata = eval(mc.getAttr('{}.metadata'.format(self.sys_grp)))
+        self.sys_data = eval(mc.getAttr('{}.metadata'.format(self.sys_grp)))
 
     def load_loc_data(self):
         self.loc_metadata = eval(mc.getAttr('{}.metadata'.format(self.loc)))
 
     def commit_data(self, group, data):
-        mc.setAttr('{}.metadata'.format(self.loc), self.loc_metadata, type='string')
+        mc.setAttr('{}.metadata'.format(group), data, type='string')
 
     def update_grp_members(self):
         self.template_members = mc.listRelatives(self.current_group, c=1)
@@ -1625,10 +1683,10 @@ class RigTemplate:
         """
         pass
 
-    def list_systems(self):
+    def list_all_loc(self):
         pass
 
-    def list_all_loc(self):
+    def rebuild_from_data(self):
         pass
 
 

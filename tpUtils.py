@@ -1497,12 +1497,13 @@ class RigTemplate:
 
     def __init__(self):
         self.tag_node = 'tp_rigSystems_rigTemplate'
-        self.loc = ''
         self.environment_grp = ''
+        self.sys = ''
+        self.loc = ''
 
         self.environment_data = {}
         self.sys_data = {}
-        self.loc_metadata = {}
+        self.loc_data = {}
         self.tag_data = {}
 
         self.current_data = {
@@ -1520,9 +1521,10 @@ class RigTemplate:
                 'group': '',
                 'locators': []},
 
-            'loc_metadata': {
+            'loc_data': {
                 'parent': '',
-                'locator_name': '',
+                'unique_name': '',
+                'name': '',
                 'index': '',
                 'joint': '',
                 'position': {
@@ -1531,7 +1533,7 @@ class RigTemplate:
                     's': ''},
                 'avg_vertex': [],
                 'system': '',
-                'group': ''},
+                'system_grp': ''},
 
             'tag_data': {
                 'creation_date': '',
@@ -1586,41 +1588,53 @@ class RigTemplate:
         mc.addAttr(self.sys_data['group'], longName='loc_list', attributeType='message', multi=True, indexMatters=False)
         self.commit_data(self.sys_data['group'], self.sys_data)
 
-    def new_loc(self, system):
+    def load_sys(self, system=''):
+        if system:
+            self.sys_data['group'] = system
+        else:
+            self.sys_data['group'] = mc.ls(sl=1)[0]
+
+        self.load_sys_data()
+
+    def new_loc(self, unique_name, system=''):
         """
         Creates new template locator with metadata attribute
         """
         if system:
             self.load_sys(system)
 
-        if self.current_data['environment']:
-            if self.current_data['system']:
-                self.loc = mc.spaceLocator(name=name)[0]
-                mc.addAttr(self.loc, longName='metadata', dataType='string')
-                mc.addAttr(self.loc, longName='sys_list', attributeType='message', multi=True, indexMatters=False)
-                mc.connectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.current_data['system']),
-                               nextAvailable=True)
+        loc_list = self.list_sys_loc()
+        loc_index = 1 if loc_list is None else get_next_index(loc_list)
 
-                self.update_loc_data()
-                self.commit_data(self.loc, self.loc_metadata)
+        loc_name = '{}_'.format(unique_name) if unique_name else ''
+        name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
 
-                mc.parent(self.loc, self.sys_data['group'])
-                self.update_grp_members()
-            else:
-                mc.warning('Please create system before creating locators')
-        else:
-            mc.warning('Please initialize environment and system before creating locators')
+        self.loc = mc.spaceLocator(name=name)[0]
+        mc.addAttr(self.loc, longName='metadata', dataType='string')
+        mc.addAttr(self.loc, longName='sys_list', attributeType='message', multi=True, indexMatters=False)
+        mc.addAttr(self.loc, longName='parent', attributeType='message')
+        mc.addAttr(self.loc, longName='child', attributeType='message')
+        mc.connectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+                       nextAvailable=True)
 
-    def load_sys(self):
-        pass
+        self.loc_data = self.data_templates['loc_data']
+        self.loc_data.update({
+            'unique_name': unique_name,
+            'system_grp': self.sys_data['group']})
+        self.commit_data(self.loc, self.loc_data)
+
+        mc.parent(self.loc, self.sys_data['group'])
 
     def list_systems(self):
         data = mc.listConnections('{}.sys_list'.format(self.environment_data['group']))
         for sys in data:
             print sys
 
-    def update_loc_data(self):
-        pass
+        return data
+
+    def list_sys_loc(self):
+        data = mc.listConnections('{}.loc_list'.format(self.sys_data['group']))
+        return data
 
     def connect_message(self):
         pass
@@ -1629,8 +1643,47 @@ class RigTemplate:
         pass
 
     def assign_sys(self, system):
-        self.loc_metadata['system'] = system
+        mc.disconnectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+                          nextAvailable=1)
+        self.loc_data['system'] = system if system else mc.ls(sl=1)[0]
+        self.load_sys(self.loc_data['system'])
+        mc.connectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+                       nextAvailable=True)
+
+        loc_list = self.list_sys_loc()
+        loc_index = get_next_index(loc_list)
+
+        loc_name = '{}_'.format(self.loc_data['unique_name']) if self.loc_data['unique_name'] else ''
+        name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
+        self.loc = mc.rename(self.loc, name)
         self.commit_data()
+
+    @property
+    def loc_sys(self):
+        sys = mc.listConnections('{}.message'.format(self.loc), s=0, d=1)[1]
+        return sys
+
+    @loc_sys.setter
+    def loc_sys(self, system):
+        mc.disconnectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+                          nextAvailable=1)
+        mc.connectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(system),
+                       nextAvailable=True)
+
+    def update_loc_data(self):
+        self.loc_data.update({
+            'name': self.loc,
+            'parent': mc.listConnections('{}.parent'.format(self.loc), s=0, d=1)[0],
+            'child': mc.listConnections('{}.child'.format(self.loc), s=0, d=1)[0],
+            'system_grp': mc.listConnections('{}.sys_grp'.format(self.loc), s=0, d=1)[0],
+            'position': {'t': mc.xform(self.loc, q=1, t=1, ws=1),
+                         'r': mc.xform(self.loc, q=1, ro=1, ws=1),
+                         's': mc.xform(self.loc, q=1, s=1, ws=1)},
+        })
+
+    def parent_system(self):
+        pass
+
 
     def load_loc(self):
         self.loc = mc.ls(sl=1)[0]
@@ -1641,8 +1694,8 @@ class RigTemplate:
         self.template_members = mc.listRelatives(self.current_group, c=1)
 
     def set_parent(self, parent):
-        self.loc_metadata['parent'] = parent if parent else mc.ls(sl=1)[0]
-        self.commit_data(self.loc, self.loc_metadata)
+        self.loc_data['parent'] = parent if parent else mc.ls(sl=1)[0]
+        self.commit_data(self.loc, self.loc_data)
 
     def parent_chain(self, system):
         pass
@@ -1654,10 +1707,10 @@ class RigTemplate:
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_data['group'])))
 
     def load_sys_data(self):
-        self.sys_data = eval(mc.getAttr('{}.metadata'.format(self.sys_grp)))
+        self.sys_data = eval(mc.getAttr('{}.metadata'.format(self.sys_data['group'])))
 
     def load_loc_data(self):
-        self.loc_metadata = eval(mc.getAttr('{}.metadata'.format(self.loc)))
+        self.loc_data = eval(mc.getAttr('{}.metadata'.format(self.loc)))
 
     def commit_data(self, group, data):
         mc.setAttr('{}.metadata'.format(group), data, type='string')
@@ -1689,6 +1742,22 @@ class RigTemplate:
     def rebuild_from_data(self):
         pass
 
+def get_next_index(item_list):
+    """
+    Given a list of strings with sequential indexes, check for the next in sequence
+    :param item_list:
+    :return next int index:
+    """
+    index_list = []
+
+    for loc in item_list:
+        name_split = loc.split('_')
+        for item in name_split:
+            if item.isdigit():
+                index_list.append(int(item))
+
+    new_index = max(index_list) + 1
+    return new_index
 
 
 

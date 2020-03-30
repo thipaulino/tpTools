@@ -33,7 +33,7 @@ def sysFromEdgeLoop(egde, surface, name=""):
                                     degree=1, conformToSmoothMeshPreview=0)[0]
 
     reverse_crv = xDirection_positive(anchor_curve)
-    if reverse_crv == False: cmds.reverseCurve(anchor_curve, ch=0, rpo=1)
+    if reverse_crv is False: cmds.reverseCurve(anchor_curve, ch=0, rpo=1)
     cmds.delete(anchor_curve, ch=1)
 
     # Duplicate -> Rebuild to low res
@@ -92,7 +92,7 @@ def follicleOnClosestPoint(surface, locator_list, name=""):
 
 def connectLocatorToCrv(loc_list, crv):
 
-    for loc in loc_list :
+    for loc in loc_list:
         loc_pos = cmds.xform(loc, q=1, ws=1, t=1)
         loc_u = getUParam(loc_pos, anchor_curve)
         pciNode_name = loc.replace("_loc", "_pci")
@@ -240,6 +240,7 @@ for n, i in enumerate(list1_attr):
 
 # JOINT SECTION __________________________________________________________________
 
+
 def jointChainMultiCrv(addIk=0, bind=0, loft=0, cluster=0, name=""):
     """
     ikSpline Loft System
@@ -328,6 +329,7 @@ def jointChainMultiCrv(addIk=0, bind=0, loft=0, cluster=0, name=""):
 
     return sys_grp
 
+
 def jointsOnSelection():
     """
     Creates and places joints on each selection
@@ -350,6 +352,7 @@ def jointsOnSelection():
         joint_list.append(newJoint)
 
     return joint_list
+
 
 def jointsOnCVs(path_crv):
     """
@@ -390,29 +393,29 @@ def parentInOrder(sel):
         cmds.parent(sel[z+1], i)
         if z+1 >= len(sel)-1: break
 
-'''
+"""
 # Create joint chain from edge selection
 # Under contruction
 def chainFromEdge(reverse=0, crvOnly=0):
     sel = cmds.sl(ls=1)
-
+    
     polyToCurve -form 2 -degree 3 -conformToSmoothMeshPreview 1 #mel
     curveDeg = cmds.getAttr(v_curve_shape + ".degree")
-	curveSpa = cmds.getAttr(v_curve_shape + ".spans")
-	# CV's = degrees + spans
-	cvCount = curveDeg + curveSpa
+    curveSpa = cmds.getAttr(v_curve_shape + ".spans")
+    # CV's = degrees + spans
+    cvCount = curveDeg + curveSpa
     
-	# Deletes extra cvs, rebuilds curve, del hist, unparent curve
-	cmds.delete(v_curve[0] + '.cv[{}]'.format(cvCount-2), v_curve[0] + '.cv[1]')
-	cmds.rebuildCurve(v_curve, ch=0, rpo=1, rt=0, end=1, kr=0, kcp=1, kep=1, kt=0, d=1, tol=0.01)
-	cmds.rebuildCurve(v_curve, ch=0, rpo=1, rt=0, end=1, kr=0, kcp=1, kep=1, kt=0, d=3, tol=0.01)
-
+    # Deletes extra cvs, rebuilds curve, del hist, unparent curve
+    cmds.delete(v_curve[0] + '.cv[{}]'.format(cvCount-2), v_curve[0] + '.cv[1]')
+    cmds.rebuildCurve(v_curve, ch=0, rpo=1, rt=0, end=1, kr=0, kcp=1, kep=1, kt=0, d=1, tol=0.01)
+    cmds.rebuildCurve(v_curve, ch=0, rpo=1, rt=0, end=1, kr=0, kcp=1, kep=1, kt=0, d=3, tol=0.01)
+    
     cv_list = cmds.getAttr(path_crv + '.cv[:]')
-
+    
     for i, cv in enumerate(cv_list):
         ctrl = tp_staticCtrl('ctrl_cv' + str(i))
         cmds.xform(ctrl[1], t= cv)
-'''
+"""
 
 
 # CONTROL SECTION __________________________________________________________________
@@ -476,6 +479,7 @@ def bd_buildCtrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, 
 
     return pack
 
+
 def create_ctrl(name, position=(0,0,0), rotation=(0,0,0)):
     """
     Creates circular control and positions on given coordenates
@@ -513,20 +517,43 @@ def placeOnEachSel(type="circle", scale=1, spaced=1):
             cmds.xform(control[0], t=position, ro=rotation)
 
 
-def spaceCtrl():
+def add_offset_grp_list(user_list):
     """
     Zero/Offset/Space controls
     """
-    sel = cmds.ls(sl=1)
+    item_list = user_list if user_list else cmds.ls(sl=1)
+    grp_dict = {}
 
-    for i in sel:
-        grp = cmds.group(em=1, n="{}_Grp".format(i))
+    for item in item_list:
+        grp = cmds.group(em=1, n="{}_grp".format(item))
 
-        sel_t = cmds.xform(i, q=1, t=1)
-        sel_ro = cmds.xform(i, q=1, ro=1)
+        sel_t = cmds.xform(item, q=1, t=1)
+        sel_ro = cmds.xform(item, q=1, ro=1)
 
         cmds.xform(grp, t=sel_t, ro=sel_ro)
-        cmds.parent(i, grp)
+        cmds.parent(item, grp)
+
+        grp_dict.update({item: grp})
+
+    return grp_dict
+
+
+def add_offset_grp(user_item):
+    """
+    Zero/Offset/Space controls
+    """
+    item = user_item if user_item else cmds.ls(sl=1)
+
+    grp = cmds.group(em=1, n="{}_grp".format(item))
+
+    sel_t = cmds.xform(item, q=1, t=1, ws=1)
+    sel_ro = cmds.xform(item, q=1, ro=1, ws=1)
+
+    cmds.xform(grp, t=sel_t, ro=sel_ro)
+    cmds.parent(item, grp)
+
+    return grp
+
 
 '''
 # Controls on CV's
@@ -537,6 +564,7 @@ for i, cv in enumerate(cv_list):
     ctrl = tp_staticCtrl('ctrl_cv' + str(i))
     cmds.xform(ctrl[1], t= cv)
 '''
+
 
 def placeOnEach_cluster(name="", type="circle", scale=1, color=(1,1,1), parentConstraint=0):
     """
@@ -686,6 +714,7 @@ def multi_motionpath(name, amount, inverse=0):
 
     cmds.group(loc_list)
 
+
 def param_from_length(curve, count, curve_type = "open", space = "uv", normalized=True):
     """
     By Orkhan Ashrofov - Ribonizer
@@ -739,6 +768,7 @@ def param_from_length(curve, count, curve_type = "open", space = "uv", normalize
 
     return data
 
+
 def createCtrl(name, position=(0,0,0), rotation=(0,0,0)):
     """
     # Creates circular control and positions on given coordenates
@@ -763,6 +793,7 @@ list2 = cmds.ls(sl=1)
 for n, i in enumerate(list1):
     cmds.parentConstraint(i, list2[n])
 '''
+
 
 def cubeOverGeo():
     object = cmds.ls(sl=1)[0]
@@ -836,6 +867,7 @@ blnd_node = cmds.blendShape(automatic=1, n="{}_FinalOutput_BlendShape".format(bl
 blnd_weights = cmds.blendShape(blnd_node, q=True, w=1)
 for y, z in enumerate(blnd_weights): cmds.blendShape(blnd_node, edit=1, w=[(y, 1.0)])
 '''
+
 
 # bd_blendLists("_Lattice", 1)
 def bd_blendLists(tag, addTarg=0):
@@ -1495,6 +1527,18 @@ def poleVector_math(dist=0.5):
 
 class RigTemplate:
 
+    """
+    Class development:
+        create template group dict
+        parent system
+        parent template
+        rebuild system
+        line between locators
+        export system
+        import system
+        export/import all
+    """
+
     def __init__(self):
         self.tag_node = 'tp_rigSystems_rigTemplate'
         self.environment_grp = ''
@@ -1505,10 +1549,11 @@ class RigTemplate:
         self.sys_data = {}
         self.loc_data = {}
         self.tag_data = {}
+        self.loaded_loc_data = {}
 
         self.current_data = {
             'system': '',
-            'locator': '',}
+            'locator': ''}
 
         self.data_templates = {
             'environment_data': {
@@ -1526,14 +1571,14 @@ class RigTemplate:
                 'unique_name': '',
                 'name': '',
                 'index': '',
-                'joint': '',
                 'position': {
                     't': '',
                     'r': '',
                     's': ''},
-                'avg_vertex': [],
-                'system': '',
-                'system_grp': ''},
+                'system_grp': '',
+                'system_plug': '',  # Used to retrieve loc name
+                'ref_vertex': [],
+                'joint': ''},
 
             'tag_data': {
                 'creation_date': '',
@@ -1564,6 +1609,11 @@ class RigTemplate:
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_grp)))
 
     def new_environment(self):
+        """
+        Creates new group for all template systems with necessary attributes
+        Connects to tag group for easy class access
+        :return:
+        """
         self.environment_data = self.data_templates['environment_data']
         self.environment_data['group'] = mc.group(name='rig_template_grp', em=1)
         mc.connectAttr('{}.message'.format(self.environment_data['group']), '{}.environment_list'.format(self.tag_node),
@@ -1581,12 +1631,44 @@ class RigTemplate:
         self.sys_data['name'] = name if name else 'tempName'
         self.sys_data['group'] = mc.group(name='{}_sys_grp'.format(name), empty=True)
         mc.parent(self.sys_data['group'], self.environment_data['group'])
-        mc.connectAttr('{}.message'.format(self.sys_data['group']), '{}.sys_list'.format(self.environment_data['group']),
+        mc.connectAttr('{}.message'.format(self.sys_data['group']),
+                       '{}.sys_list'.format(self.environment_data['group']),
                        nextAvailable=True)
 
         mc.addAttr(self.sys_data['group'], longName='metadata', dataType='string')
         mc.addAttr(self.sys_data['group'], longName='loc_list', attributeType='message', multi=True, indexMatters=False)
         self.commit_data(self.sys_data['group'], self.sys_data)
+
+    def new_loc(self, unique_name='', system=''):
+        """
+        Creates new template locator with metadata attribute
+        """
+        if system:
+            self.load_sys(system)
+
+        loc_list = self.list_sys_locs()
+        loc_index = 1 if loc_list is None else get_next_index(loc_list)
+
+        loc_name = '{}_'.format(unique_name) if unique_name else ''
+        name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
+
+        self.loc = mc.spaceLocator(name=name)[0]
+        mc.addAttr(self.loc, longName='metadata', dataType='string')
+        mc.addAttr(self.loc, longName='system_grp', attributeType='message')
+        mc.addAttr(self.loc, longName='parent', attributeType='message')
+        mc.addAttr(self.loc, longName='child', attributeType='message')
+        mc.connectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+                       nextAvailable=True)
+
+        self.loc_data = self.data_templates['loc_data']
+        self.loc_data.update({
+            'unique_name': unique_name,
+            'system_grp': self.sys_data['group'],
+            'system_plug': mc.listConnections('{}.system_grp'.format(self.loc), d=1, s=0, p=1)[0].split('.')[1],
+            'name': self.loc})
+        self.commit_data(self.loc, self.loc_data)
+
+        mc.parent(self.loc, self.sys_data['group'])
 
     def load_sys(self, system=''):
         if system:
@@ -1596,109 +1678,146 @@ class RigTemplate:
 
         self.load_sys_data()
 
-    def new_loc(self, unique_name, system=''):
-        """
-        Creates new template locator with metadata attribute
-        """
-        if system:
-            self.load_sys(system)
-
-        loc_list = self.list_sys_loc()
-        loc_index = 1 if loc_list is None else get_next_index(loc_list)
-
-        loc_name = '{}_'.format(unique_name) if unique_name else ''
-        name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
-
-        self.loc = mc.spaceLocator(name=name)[0]
-        mc.addAttr(self.loc, longName='metadata', dataType='string')
-        mc.addAttr(self.loc, longName='sys_list', attributeType='message', multi=True, indexMatters=False)
-        mc.addAttr(self.loc, longName='parent', attributeType='message')
-        mc.addAttr(self.loc, longName='child', attributeType='message')
-        mc.connectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
-                       nextAvailable=True)
-
-        self.loc_data = self.data_templates['loc_data']
-        self.loc_data.update({
-            'unique_name': unique_name,
-            'system_grp': self.sys_data['group']})
-        self.commit_data(self.loc, self.loc_data)
-
-        mc.parent(self.loc, self.sys_data['group'])
-
     def list_systems(self):
         data = mc.listConnections('{}.sys_list'.format(self.environment_data['group']))
-        for sys in data:
-            print sys
-
         return data
 
-    def list_sys_loc(self):
-        data = mc.listConnections('{}.loc_list'.format(self.sys_data['group']))
+    def list_sys_locs(self, system=''):
+        sys = system if system else self.sys_data['group']
+        data = mc.listConnections('{}.loc_list'.format(sys))
         return data
 
-    def connect_message(self):
-        pass
-
-    def new_grp(self, name):
-        pass
-
-    def assign_sys(self, system):
-        mc.disconnectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+    def set_loc_sys(self, system=''):
+        """
+        Changes loaded locator system
+        :param system:
+        """
+        self.load_sys(self.loc_sys())
+        mc.disconnectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
                           nextAvailable=1)
-        self.loc_data['system'] = system if system else mc.ls(sl=1)[0]
-        self.load_sys(self.loc_data['system'])
-        mc.connectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+        self.loc_data['system_grp'] = system if system else mc.ls(sl=1)[0]
+        self.load_sys(self.loc_data['system_grp'])
+        mc.connectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
                        nextAvailable=True)
 
-        loc_list = self.list_sys_loc()
+        loc_list = self.list_sys_locs(self.loc_data['system_grp'])
         loc_index = get_next_index(loc_list)
 
         loc_name = '{}_'.format(self.loc_data['unique_name']) if self.loc_data['unique_name'] else ''
         name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
         self.loc = mc.rename(self.loc, name)
-        self.commit_data()
+        mc.parent(self.loc, self.loc_data['system_grp'])
 
-    @property
-    def loc_sys(self):
-        sys = mc.listConnections('{}.message'.format(self.loc), s=0, d=1)[1]
-        return sys
-
-    @loc_sys.setter
-    def loc_sys(self, system):
-        mc.disconnectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
-                          nextAvailable=1)
-        mc.connectAttr('{}.message'.format(self.loc), '{}.loc_list'.format(system),
-                       nextAvailable=True)
+        self.update_loc_data()
 
     def update_loc_data(self):
+        parent = mc.listConnections('{}.parent'.format(self.loc), s=1, d=0)
+        child = mc.listConnections('{}.child'.format(self.loc), s=0, d=1)
+
         self.loc_data.update({
             'name': self.loc,
-            'parent': mc.listConnections('{}.parent'.format(self.loc), s=0, d=1)[0],
-            'child': mc.listConnections('{}.child'.format(self.loc), s=0, d=1)[0],
-            'system_grp': mc.listConnections('{}.sys_grp'.format(self.loc), s=0, d=1)[0],
+            'unique_name': self.loc_data['unique_name'],
+            'parent': '' if parent is None else parent,
+            'child': '' if child is None else child[0],
+            'system_grp': self.loc_sys(),
             'position': {'t': mc.xform(self.loc, q=1, t=1, ws=1),
                          'r': mc.xform(self.loc, q=1, ro=1, ws=1),
                          's': mc.xform(self.loc, q=1, s=1, ws=1)},
+            'index': self.loc_index(),
+            'ref_vertex': self.loc_data['ref_vertex'],
+            'joint': self.loc_data['joint']
         })
 
-    def parent_system(self):
-        pass
-
-
-    def load_loc(self):
-        self.loc = mc.ls(sl=1)[0]
-        self.load_loc_data()
-
-    def load_grp(self):
-        self.current_group = mc.ls(sl=1)[0]
-        self.template_members = mc.listRelatives(self.current_group, c=1)
-
-    def set_parent(self, parent):
-        self.loc_data['parent'] = parent if parent else mc.ls(sl=1)[0]
         self.commit_data(self.loc, self.loc_data)
 
-    def parent_chain(self, system):
+    def refresh_loc(self):
         pass
+
+    def update_sys_locs_data(self):
+        locators = self.list_sys_locs()
+
+        for loc in locators:
+            self.load_loc(loc)
+            self.update_loc_data()
+
+        self.sys_data['locators'] = locators
+        self.commit_data(self.sys_data['group'], self.sys_data)
+
+    def update_template_data(self):
+        pass
+
+    def parent_template_sys(self):
+        pass
+
+    def load_loc(self, loc=''):
+        self.loc = loc if loc else mc.ls(sl=1)[0]
+        self.load_loc_data()
+
+    def load_loc_data(self, data=''):
+        data = data if data else mc.getAttr('{}.metadata'.format(self.loc))
+        self.loc_data = eval(data)
+
+    def set_loc_parent(self, parent=''):
+        parent = parent if parent else mc.ls(sl=1)[0]
+        mc.connectAttr('{}.child'.format(parent), '{}.parent'.format(self.loc))
+        self.update_loc_data()
+
+    def set_loc_children(self):
+        pass
+
+    def loc_sys(self):
+        sys = mc.listConnections('{}.system_grp'.format(self.loc), s=0, d=1)[0]
+        return sys
+
+    # def loc_sys(self, system):
+    #     mc.disconnectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+    #                       nextAvailable=1)
+    #     mc.connectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(system),
+    #                    nextAvailable=True)
+
+    def loc_parent(self):
+        parent_query = mc.listConnections('{}.parent'.format(self.loc), s=1, d=0)
+        parent = '' if parent_query is None else parent_query[0]
+        return parent
+
+    # @loc_parent.setter
+    # def loc_parent(self, parent):
+    #     mc.connectAttr('{}.child'.format(parent), '{}.parent'.format(self.loc))
+    #     self.loc_data['parent'] = parent
+
+    def loc_index(self):
+        name_split = self.loc.split('_')
+        index = ''
+
+        for word in name_split:
+            if word.isdigit():
+                index = int(word)
+
+        return index
+
+    def set_loc_index(self, index):
+        new_name = self.loc.replace('{:02d}'.format(self.loc_index), '{:02d}'.format(index))
+        self.loc = mc.rename(self.loc, new_name)
+        self.update_loc_data()
+
+        return new_name
+
+    def parent_all(self):
+        pass
+
+    def parent_sys(self):
+        locators = self.list_sys_locs()
+
+        for loc in locators:
+            self.load_loc(loc)
+            parent = self.loc_parent()
+            offset_grp = add_offset_grp(loc)
+            mc.parent(offset_grp, self.loc_sys())
+
+            if parent:
+                mc.parentConstraint(parent, offset_grp, mo=True)
+            else:
+                continue
 
     def unparent_chain(self, system):
         pass
@@ -1709,38 +1828,43 @@ class RigTemplate:
     def load_sys_data(self):
         self.sys_data = eval(mc.getAttr('{}.metadata'.format(self.sys_data['group'])))
 
-    def load_loc_data(self):
-        self.loc_data = eval(mc.getAttr('{}.metadata'.format(self.loc)))
-
     def commit_data(self, group, data):
         mc.setAttr('{}.metadata'.format(group), data, type='string')
-
-    def update_grp_members(self):
-        self.template_members = mc.listRelatives(self.current_group, c=1)
 
     def update_grp_data(self):
         pass
 
-    def export_data(self, system):
+    def export_template_data(self, system):
         """
         Export system data to json for future reconstruction
         """
         pass
 
-    def rebuild_sys_from_data(self):
+    def import_template_data(self):
+        pass
+
+    def rebuild_from_data(self, data):
+
+        pass
+
+    def rebuild_sys_from_data(self, data):
+
+        pass
+
+    def rebuild_loc_from_data(self, data):
+        self.loc_data = data
         pass
 
     def reorder_indexes(self):
         """
         Reorder system indexes in selection order
         """
+        # locators = self.list_sys_locs()
         pass
 
     def list_all_loc(self):
         pass
 
-    def rebuild_from_data(self):
-        pass
 
 def get_next_index(item_list):
     """
@@ -1758,7 +1882,3 @@ def get_next_index(item_list):
 
     new_index = max(index_list) + 1
     return new_index
-
-
-
-

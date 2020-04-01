@@ -1908,7 +1908,6 @@ class RigTemplate:
         """
         Reorder system indexes in selection order
         """
-        # locators = self.list_sys_locs()
         pass
 
     def list_all_loc(self):

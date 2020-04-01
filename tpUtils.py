@@ -1549,11 +1549,10 @@ class RigTemplate:
         self.sys_data = {}
         self.loc_data = {}
         self.tag_data = {}
+        self.temp_sys_data = {}
         self.loaded_loc_data = {}
 
-        self.current_data = {
-            'system': '',
-            'locator': ''}
+        self.current_data = {}
 
         self.data_templates = {
             'environment_data': {
@@ -1564,7 +1563,7 @@ class RigTemplate:
             'sys_data': {
                 'name': '',
                 'group': '',
-                'locators': []},
+                'locators': {}},
 
             'loc_data': {
                 'parent': '',
@@ -1608,6 +1607,7 @@ class RigTemplate:
         self.environment_grp = mc.listConnections('{}.environment_list'.format(self.tag_node), s=1, d=0)[0]
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_grp)))
 
+    # NEW STUFF SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def new_environment(self):
         """
         Creates new group for all template systems with necessary attributes
@@ -1678,6 +1678,15 @@ class RigTemplate:
 
         self.load_sys_data()
 
+    def load_loc(self, loc=''):
+        self.loc = loc if loc else mc.ls(sl=1)[0]
+        self.load_loc_data()
+        self.load_sys(self.loc_sys())
+
+    def load_loc_data(self, data=''):
+        data = data if data else mc.getAttr('{}.metadata'.format(self.loc))
+        self.loc_data = eval(data)
+
     def list_systems(self):
         data = mc.listConnections('{}.sys_list'.format(self.environment_data['group']))
         return data
@@ -1710,6 +1719,7 @@ class RigTemplate:
 
         self.update_loc_data()
 
+    # UPDATE DATA SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def update_loc_data(self):
         parent = mc.listConnections('{}.parent'.format(self.loc), s=1, d=0)
         child = mc.listConnections('{}.child'.format(self.loc), s=0, d=1)
@@ -1717,8 +1727,8 @@ class RigTemplate:
         self.loc_data.update({
             'name': self.loc,
             'unique_name': self.loc_data['unique_name'],
-            'parent': '' if parent is None else parent,
-            'child': '' if child is None else child[0],
+            'parent': '' if parent is None else str(parent[0]),
+            'child': '' if child is None else str(child[0]),
             'system_grp': self.loc_sys(),
             'position': {'t': mc.xform(self.loc, q=1, t=1, ws=1),
                          'r': mc.xform(self.loc, q=1, ro=1, ws=1),
@@ -1729,6 +1739,24 @@ class RigTemplate:
         })
 
         self.commit_data(self.loc, self.loc_data)
+
+    def update_sys_data(self):
+        current_loc = self.loc
+        self.current_data = {}
+        locators = self.list_sys_locs()
+
+        for loc in locators:
+            self.load_loc(loc)
+            self.update_loc_data()
+            self.current_data.update({loc: self.loc_data})
+
+        self.sys_data['locators'] = self.current_data
+        self.current_data = {}
+        self.commit_data(self.sys_data['group'], self.sys_data)
+        self.load_loc(current_loc)
+
+    def update_template_data(self):
+        pass
 
     def refresh_loc(self):
         pass
@@ -1743,24 +1771,26 @@ class RigTemplate:
         self.sys_data['locators'] = locators
         self.commit_data(self.sys_data['group'], self.sys_data)
 
-    def update_template_data(self):
-        pass
-
     def parent_template_sys(self):
         pass
-
-    def load_loc(self, loc=''):
-        self.loc = loc if loc else mc.ls(sl=1)[0]
-        self.load_loc_data()
-
-    def load_loc_data(self, data=''):
-        data = data if data else mc.getAttr('{}.metadata'.format(self.loc))
-        self.loc_data = eval(data)
 
     def set_loc_parent(self, parent=''):
         parent = parent if parent else mc.ls(sl=1)[0]
         mc.connectAttr('{}.child'.format(parent), '{}.parent'.format(self.loc))
-        self.update_loc_data()
+        self.update_sys_data()
+
+    def set_loc_parent_sel_order(self):
+        sel = mc.ls(sl=1)
+        loc_dict = {}
+        for n, loc in enumerate(sel):
+            if loc == sel[-1]:
+                break
+            else:
+                loc_dict.update({loc: sel[n+1]})
+
+        for loc in loc_dict:
+            self.load_loc(loc)
+            self.set_loc_parent(loc_dict[loc])
 
     def set_loc_children(self):
         pass
@@ -1796,7 +1826,7 @@ class RigTemplate:
         return index
 
     def set_loc_index(self, index):
-        new_name = self.loc.replace('{:02d}'.format(self.loc_index), '{:02d}'.format(index))
+        new_name = self.loc.replace('{:02d}'.format(self.loc_index()), '{:02d}'.format(index))
         self.loc = mc.rename(self.loc, new_name)
         self.update_loc_data()
 
@@ -1847,9 +1877,33 @@ class RigTemplate:
 
         pass
 
-    def rebuild_sys_from_data(self, data):
+    def rebuild_sys(self):
+        locators = self.list_sys_locs()
 
-        pass
+        for loc in locators:
+            self.load_loc(loc)
+            self.sys_data['locators'].update({'loc': self.loc_data})
+
+        mc.delete(self.sys_data['group'])
+        self.temp_sys_data = self.sys_data
+        self.new_sys(self.sys_data['name'])
+
+        for loc in self.temp_sys_data['locators']:
+            self.new_loc(self.temp_sys_data['locators'][loc]['unique_name'])
+            self.loc_data = self.temp_sys_data['locators'][loc]
+            self.commit_data(self.loc, self.loc_data)
+            self.set_loc_index(self.loc_data['index'])
+
+        for loc in self.temp_sys_data['locators']:
+            self.load_loc(loc)
+            self.update_loc()
+
+    def update_loc(self):
+        self.set_loc_parent(self.loc_data['parent'])
+        mc.xform(self.loc,
+                 t=self.loc_data['position']['t'],
+                 ro=self.loc_data['position']['r'],
+                 ws=True)
 
     def rebuild_loc_from_data(self, data):
         self.loc_data = data

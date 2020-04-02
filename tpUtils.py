@@ -103,7 +103,6 @@ def connectLocatorToCrv(loc_list, crv):
 
 '''
 # Locator on CV's - Select curve, run script
-# locatorOnCVs()
 '''
 def locatorOnCVs(path_crv):
     cmds.select(cl=1)
@@ -120,14 +119,16 @@ def locatorOnCVs(path_crv):
     return locator_list
 
 
-
 '''
 # Distribute follicles on surface + joints and controls
 '''
 # follicle2D(name="testFlc", rows=10.0, colums=10.0, widthPercentage=1, hightPercentage=1)
 
-def follicle2D(name="", rows=3, colums=3, widthPercentage=1, hightPercentage=1):
-    """ Distribute follicles in a 2D array of a polygon surface"""
+
+def follicle_2d(name="", rows=3, colums=3, widthPercentage=1, hightPercentage=1):
+    """
+    Distribute follicles in a 2D array of a polygon surface
+    """
 
     # If colums/rows equals 1, position in center
     if colums == 1.0: surface_uStep = 0.5
@@ -166,43 +167,43 @@ def follicle2D(name="", rows=3, colums=3, widthPercentage=1, hightPercentage=1):
 
 
 def createFollicle(inputSurface=[], scaleGrp='', uVal=0.5, vVal=0.5, hide=1, name='follicle'):
-    #Create a follicle
+    # Create a follicle
     follicleShape = cmds.createNode('follicle')
-    #Get the transform of the follicle
+    # Get the transform of the follicle
     follicleTrans = cmds.listRelatives(follicleShape, parent=True)[0]
-    #Rename the follicle
+    # Rename the follicle
     follicleTrans = cmds.rename(follicleTrans, name)
     follicleShape = cmds.rename(cmds.listRelatives(follicleTrans, c=True)[0], (name + 'Shape'))
 
-    #If the inputSurface is of type 'nurbsSurface', connect the surface to the follicle
+    # If the inputSurface is of type 'nurbsSurface', connect the surface to the follicle
     if cmds.objectType(inputSurface[0]) == 'nurbsSurface':
         cmds.connectAttr((inputSurface[0] + '.local'), (follicleShape + '.inputSurface'))
-    #If the inputSurface is of type 'mesh', connect the surface to the follicle
+    # If the inputSurface is of type 'mesh', connect the surface to the follicle
     if cmds.objectType(inputSurface[0]) == 'mesh':
         cmds.connectAttr((inputSurface[0] + '.outMesh'), (follicleShape + '.inputMesh'))
 
-    #Connect the worldMatrix of the surface into the follicleShape
+    # Connect the worldMatrix of the surface into the follicleShape
     cmds.connectAttr((inputSurface[0] + '.worldMatrix[0]'), (follicleShape + '.inputWorldMatrix'))
-    #Connect the follicleShape to it's transform
+    # Connect the follicleShape to it's transform
     cmds.connectAttr((follicleShape + '.outRotate'), (follicleTrans + '.rotate'))
     cmds.connectAttr((follicleShape + '.outTranslate'), (follicleTrans + '.translate'))
-    #Set the uValue and vValue for the current follicle
+    # Set the uValue and vValue for the current follicle
     cmds.setAttr((follicleShape + '.parameterU'), uVal)
     cmds.setAttr((follicleShape + '.parameterV'), vVal)
-    #Lock the translate/rotate of the follicle
+    # Lock the translate/rotate of the follicle
     cmds.setAttr((follicleTrans + '.translate'), lock=True)
     cmds.setAttr((follicleTrans + '.rotate'), lock=True)
 
-    #If it was set to be hidden, hide the follicle
+    # If it was set to be hidden, hide the follicle
     if hide:
         cmds.setAttr((follicleShape + '.visibility'), 0)
-    #If a scale-group was defined and exists
+    # If a scale-group was defined and exists
     if scaleGrp and cmds.objExists(scaleGrp):
-        #Connect the scale-group to the follicle
+        # Connect the scale-group to the follicle
         cmds.connectAttr((scaleGrp + '.scale'), (follicleTrans + '.scale'))
-        #Lock the scale of the follicle
+        # Lock the scale of the follicle
         cmds.setAttr((follicleTrans + '.scale'), lock=True)
-    #Return the follicle and it's shape
+    # Return the follicle and it's shape
     return follicleTrans, follicleShape
 
 '''
@@ -420,7 +421,7 @@ def chainFromEdge(reverse=0, crvOnly=0):
 
 # CONTROL SECTION __________________________________________________________________
 
-def bd_buildCtrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, offset=0):
+def build_ctrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, offset=0):
     """
     ctrl_type - Cube, Sphere, Circle (add - square, pointer, arrow, spherev2)
     :param ctrl_type:
@@ -457,7 +458,7 @@ def bd_buildCtrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, 
         c1 = cmds.circle(n=name + sufix, nr=(1, 0, 0), r=scale, ch=0)[0]
         pack.append(c1)
 
-    shapes = cmds.listRelatives(c1, f = True, s=True)
+    shapes = cmds.listRelatives(c1, f=True, s=True)
     for y, shape in enumerate(shapes):
         cmds.rename(shape, "{}Shape{:02d}".format(c1, y+1))
 
@@ -480,22 +481,7 @@ def bd_buildCtrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, 
     return pack
 
 
-def create_ctrl(name, position=(0,0,0), rotation=(0,0,0)):
-    """
-    Creates circular control and positions on given coordenates
-    :param name:
-    :param position:
-    :param rotation:
-    :return ctrl_list:
-    """
-    ctrl = cmds.circle(n=name, c=(0,0,0), nr=(1,0,0), r=1, ch=0)[0]
-    spaceGrp = cmds.group(ctrl, n=name + '_Grp')
-    cmds.xform(spaceGrp, t=position, ro=rotation)
-    pack = [ctrl, spaceGrp]
-
-    return pack
-
-def placeOnEachSel(type="circle", scale=1, spaced=1):
+def place_on_selection(type="circle", scale=1, spaced=1):
     """
     Control on each selection
     :param type:
@@ -509,7 +495,7 @@ def placeOnEachSel(type="circle", scale=1, spaced=1):
         position = cmds.xform(i, q=1, t=1, ws=1)
         rotation = cmds.xform(i, q=1, ro=1, ws=1)
 
-        control = bd_buildCtrl(ctrl_type=type, name=i, scale=scale, spaced=spaced)
+        control = build_ctrl(ctrl_type=type, name=i, scale=scale, spaced=spaced)
 
         if spaced == 1:
             cmds.xform(control[1], t=position, ro=rotation)
@@ -566,14 +552,14 @@ for i, cv in enumerate(cv_list):
 '''
 
 
-def placeOnEach_cluster(name="", type="circle", scale=1, color=(1,1,1), parentConstraint=0):
+def place_on_clusters(name="", type="circle", scale=1, color=(1, 1, 1), parent_constraint=0):
     """
     Control on each Cluster selection
     :param name:
     :param type:
     :param scale:
     :param color:
-    :param parentConstraint:
+    :param parent_constraint:
     :return:
     """
     sel = cmds.ls(sl=1)
@@ -582,19 +568,21 @@ def placeOnEach_cluster(name="", type="circle", scale=1, color=(1,1,1), parentCo
         cls_shape = cmds.listRelatives(i, type="shape")
         cls_tr = cmds.getAttr(cls_shape[0] + ".origin")[0]
 
-        new_ctrl = bd_buildCtrl(ctrl_type=type, name=i, sufix="_Ctrl".format(n), scale=scale, spaced=1, offset=0)
+        new_ctrl = build_ctrl(ctrl_type=type, name=i, sufix="_Ctrl".format(n),
+                              scale=scale, spaced=1, offset=0)
         setCtrlColor(new_ctrl[0], color = color)
         cmds.xform(new_ctrl[1], t=cls_tr)
-        if parentConstraint == 1: cmds.parentConstraint(new_ctrl[0], i, mo=1)
+        if parent_constraint == 1:
+            cmds.parentConstraint(new_ctrl[0], i, mo=1)
 
 
-def placeOnEach_joint(name, scale=1, color=(1,1,1), parentConstraint=0):
+def place_on_joints(name, scale=1, color=(1,1,1), parent_constraint=0):
     """
     Control on each Joint selection
     :param name:
     :param scale:
     :param color:
-    :param parentConstraint:
+    :param parent_constraint:
     :return:
     """
     sel = cmds.ls(sl=1)
@@ -602,12 +590,15 @@ def placeOnEach_joint(name, scale=1, color=(1,1,1), parentConstraint=0):
     for n, i in enumerate(sel):
         position = cmds.xform(i, q=1, t=1, ws=1)
         rotation = cmds.joint(i, q=1, o=1)
-        new_ctrl = bd_buildCtrl(ctrl_type="circle", name=name, sufix="_Ctrl{}".format(n), scale=scale, spaced=1, offset=0)
+        new_ctrl = build_ctrl(ctrl_type="circle", name=name, sufix="_Ctrl{}".format(n),
+                              scale=scale, spaced=1, offset=0)
         setCtrlColor(new_ctrl[0], color = color)
         cmds.xform(new_ctrl[1], t=position, ro=rotation)
-        if parentConstraint == 1: cmds.parentConstraint(new_ctrl[0], i, mo=1)
+        if parent_constraint == 1:
+            cmds.parentConstraint(new_ctrl[0], i, mo=1)
 
-def parent_FkOrder():
+
+def parent_fk_order():
     """
     Parents in FK Order - Select Ctrl Grps, Last to First
     """
@@ -622,6 +613,7 @@ def parent_FkOrder():
         cmds.parent(z, ctrls[y+1])
         if y+1 >= len(groups-1): break
 
+
 def multi_setColor(color=(1,1,1)):
     """
     Set Control Color in Multiple Controls
@@ -631,6 +623,7 @@ def multi_setColor(color=(1,1,1)):
 
     for i in sel:
         setCtrlColor(ctrl=i, color=color)
+
 
 def setCtrlColor(ctrl, color = (1,1,1)):
     """
@@ -769,33 +762,7 @@ def param_from_length(curve, count, curve_type = "open", space = "uv", normalize
     return data
 
 
-def createCtrl(name, position=(0,0,0), rotation=(0,0,0)):
-    """
-    # Creates circular control and positions on given coordenates
-    :param name:
-    :param position:
-    :param rotation:
-    :return:
-    """
-    ctrl = cmds.circle(n=name, c=(0,0,0), nr=(1,0,0), r=1, ch=0)[0]
-
-    spaceGrp = cmds.group(ctrl, n=name + '_Grp')
-    cmds.xform(spaceGrp, t=position, ro=rotation)
-    pack = [ctrl, spaceGrp]
-
-    return pack
-
-'''
-# Parent two lists
-list1 = cmds.ls(sl=1)
-list2 = cmds.ls(sl=1)
-
-for n, i in enumerate(list1):
-    cmds.parentConstraint(i, list2[n])
-'''
-
-
-def cubeOverGeo():
+def cube_over_geo():
     object = cmds.ls(sl=1)[0]
     bbox = cmds.getAttr(object + ".boundingBox.boundingBoxSize")[0]
 
@@ -807,43 +774,9 @@ def cubeOverGeo():
     bbox_cube = cmds.polyCube(w=bbox[0], h=bbox[1], d=bbox[2], sx=1, sy=1, sz=1, ch=0)
     cmds.xform(bbox_cube, t=obj_copy_tr)
 
+
 # List Top level nodes on Outliner
 # cmds.ls(assemblies=True)
-
-# Creates snapshots from "front, right_side, back, left_side, quarter_left, quarter_right" - Saves to Desktop
-# snapshotMachine(objDistance=100, height=25, sideOffset=0, widthHight=(1920,1080))
-# Add turn on Anti Alias
-# setAttr "hardwareRenderingGlobals.lineAAEnable" 1;
-# setAttr "hardwareRenderingGlobals.multiSampleEnable" 1;
-
-
-def snapshotMachine(objDistance=100, height=30, sideOffset=0, widthHight=(1000,500)):
-    camera = cmds.camera(n="tempCam")
-    pivot_grp = cmds.group(camera, n="pivot_grp")
-    cmds.xform(camera, t=(sideOffset, height, objDistance))
-
-    view = OpenMayaUI.M3dView.active3dView()
-    cam = OpenMaya.MDagPath()
-    view.getCamera(cam)
-    current_cam_shape = cam.partialPathName()
-    current_cam = cmds.listRelatives(current_cam_shape, type="transform", p=1)
-
-    filepath = cmds.file(q=True, sn=True)
-    filename = os.path.basename(filepath)
-    raw_name, extension = os.path.splitext(filename)
-
-    cmds.lookThru(camera)
-
-    cam_angle = {'front':0, 'right_side':90, 'back':180, 'left_side':270, 'quarter_left':45, 'quarter_right':315}
-    user_path = os.environ["HOMEPATH"]
-
-    for i in cam_angle:
-        cmds.xform(pivot_grp, ro=(0,cam_angle[i],0))
-        cmds.playblast(orn=0, fr=1, p=100, v=0, fo=1, fmt="image", compression="jpg", wh=widthHight,
-                       f="C:{}\\Desktop\\{}_{}".format(user_path, raw_name, i))
-
-    cmds.lookThru(current_cam)
-    cmds.delete(pivot_grp)
 
 
 # Image resize function
@@ -871,7 +804,8 @@ for y, z in enumerate(blnd_weights): cmds.blendShape(blnd_node, edit=1, w=[(y, 1
 
 # bd_blendLists("_Lattice", 1)
 def bd_blendLists(tag, addTarg=0):
-    """ Bardel Reference Geo
+    """
+    Bardel Reference Geo
     BlandShapes Rig Geo to Reference geo
     """
 
@@ -1000,248 +934,6 @@ def get_image_size(file_path):
 # cmds.lattice("ffd1Lattice", e=1, rm=1, g="pSphere1")
 
 
-class swapOutputRefGeo_v1():
-
-    def __init__(self):
-        self.ref_geo = cmds.ls(sl=1)
-        self.connect_dict = {}
-
-        for i in self.ref_geo:
-            geo_shape = cmds.listRelatives(i, s=1)[0]
-            blend_output = cmds.listConnections(geo_shape, type="blendShape", source=1, p=1)[0]
-            geo_input = cmds.listConnections(geo_shape, type="blendShape", source=1, c=1)[0]
-
-            self.connect_dict.update({blend_output: geo_input})
-
-    def breakConnections(self):
-        for i in self.connect_dict:
-            cmds.disconnectAttr(i, self.connect_dict[i])
-
-    def reconnect(self):
-        for i in self.connect_dict:
-            cmds.connectAttr(i, self.connect_dict[i])
-
-# cookie = swapOutputRefGeo()
-# cookie.breakConnections()
-# cookie.reconnect()
-
-
-class swapOutputRefGeo_v4():
-    """ Updates output reference geo as long as the only input are blendShapes"""
-
-    def __init__(self):
-        self.ref_geo = cmds.ls(sl=1)
-        self.connect_dict = {}
-        self.blend_nodes = []
-
-        for i in self.ref_geo:
-            # Getting Geo and BlendShape node information
-            geo_shape = cmds.listRelatives(i, s=1)[0]
-            blend_node = cmds.listConnections(geo_shape, type="blendShape")[0]
-            geo_input = cmds.listConnections(blend_node, d=0, type='shape')[0]
-
-            # Getting shader information
-            cmds.select(i, r=1)
-            cmds.hyperShade(shaderNetworksSelectMaterialNodes=True)
-            shader = cmds.ls(sl=1)[0]
-            cmds.select(cl=1)
-
-            self.connect_dict.update({i: [geo_input, shader]})
-            self.blend_nodes.append(blend_node)
-
-        # Getting main Geo connections - visibility etc..
-        cmds.select(self.connect_dict.keys())
-        connection_list = cmds.listConnections(cmds.ls(sl=1), c=1, p=1, d=0)
-        self.output_attr_list = connection_list[1::2]
-        self.input_attr_list = connection_list[::2]
-
-    def delete_blends(self):
-        cmds.delete(self.blend_nodes)
-
-    def removeRefs(self):
-        for ref in self.ref_geo:
-            reference_file = cmds.referenceQuery(ref, f=1)
-            cmds.file(ref, rr=1)
-
-    def re_blend(self):
-        for i in self.connect_dict:
-            # BlendShapes section
-            blnd_name = i.split("_CH",1)[0]
-
-            blnd_node = cmds.blendShape(self.connect_dict[i][0], i, automatic=1, n="{}_End_BlendShape".format(blnd_name))
-            # Gets number of shapes - Sets all weights to 1
-            blnd_weights = cmds.blendShape(blnd_node, q=True, w=1)
-            for y, z in enumerate(blnd_weights): cmds.blendShape(blnd_node, edit=1, w=[(y, 1.0)])
-
-            # Re-assigning shaders
-            cmds.select(i)
-            cmds.hyperShade(assign=self.connect_dict[i][1])
-            cmds.select(cl=1)
-
-        # Re-connect attributes
-        for i, z in zip(self.output_attr_list, self.input_attr_list):
-            try:
-                cmds.connectAttr(str(i), str(z), f=1)
-            except: pass
-
-# cookie_13 = swapOutputRefGeo_v4()
-# cookie_13.delete_blends()
-# cookie_13.removeRefs()
-# cookie_13.re_blend()
-
-
-class replaceReference():
-
-    def __init__(self):
-        self.geo_list = []
-        self.geo_data = {}
-        self.shader_data = {}
-
-    def load_data(self):
-        """ This method querys the geo, name space and deletes name space
-
-        Usage:
-            - In Reference Editor, from desired reference, Import Objects From Reference
-            - Select all desired Geo -> Run load_data()
-
-        """
-
-        self.geo_list = cmds.ls(sl=1)
-
-        for geo in self.geo_list:
-            root_geo = geo.split(":")[1]
-            self.geo_data.update({geo:root_geo})
-
-            # Getting shader information
-            cmds.select(geo, r=1)
-            cmds.hyperShade(shaderNetworksSelectMaterialNodes=True)
-            shader = cmds.ls(sl=1)[0]
-            cmds.select(cl=1)
-            self.shader_data.update({geo + "_Shader":shader})
-
-        namespace = self.geo_list[0].split(":")[0]
-        cmds.namespace(rm=namespace, mergeNamespaceWithRoot=1)
-
-    def reconnect(self):
-
-        for geo in self.geo_data:
-            # BlendShapes section
-            name_edit = self.geo_data[geo].split("_")
-            del name_edit[-3:-1]
-            blendShape_name = "_".join(name_edit)
-
-            blnd_node = cmds.blendShape(self.geo_data[geo], geo, automatic=1, n="{}_End_BS".format(blendShape_name))
-            # Gets number of shapes - Sets all weights to 1
-            blnd_weights = cmds.blendShape(blnd_node, q=True, w=1)
-            for y, z in enumerate(blnd_weights): cmds.blendShape(blnd_node, edit=1, w=[(y, 1.0)])
-
-            # Re-assigning shaders
-            cmds.select(geo)
-            cmds.hyperShade(assign=self.shader_data[geo + "_Shader"])
-            cmds.select(cl=1)
-
-class replaceReference_v2():
-    """ This class has the goal of turning current Reference output Geo
-    into rig common geo, importing the latest reference and
-    blendShaping previews geo to new refernce geo.
-
-    Usage:
-        - Select desired Reference Geo only (no groups, deformers, etc.)
-        - Create class instance
-        - Excecute self.run()
-    """
-
-    def __init__(self):
-        """ All global variables"""
-        self.geo_list = []
-        self.geo_data = {}
-        self.shader_data = {}
-        self.ref_dir = ""
-        self.ref_namespace = ""
-
-    def load_data(self):
-        """
-        Queries:
-            Geo name, namespace, assigned shaders, reference directory, reference namespace
-        Actions:
-            Import Objects from Reference, deletes namespace
-        """
-        # Get geo selection
-        self.geo_list = cmds.ls(sl=1)
-
-        for geo in self.geo_list:
-            # Separates geo name and namespace
-            root_geo = geo.split(":")[1]
-            # Stores both in dict
-            self.geo_data.update({geo:root_geo})
-
-            # Getting shader information
-            cmds.select(geo, r=1)
-            cmds.hyperShade(shaderNetworksSelectMaterialNodes=True)
-            shader = cmds.ls(sl=1)[0]
-            cmds.select(cl=1)
-            self.shader_data.update({geo + "_Shader":shader})
-
-        # Get reference directory
-        ref_name = cmds.referenceQuery(self.geo_list[0], filename=1)
-        ref_path_split = ref_name.split("/")
-        del ref_path_split[-1]
-        # Stores directory
-        self.ref_dir = "/".join(ref_path_split) + "/"
-        # Stores currenct Namespace
-        self.ref_namespace = self.geo_list[0].split(":")[0]
-        # Import Objects from Reference - reference gone
-        cmds.file(ref_name, importReference=True)
-
-        # Deletes namespce - Merge with root
-        namespace = self.geo_list[0].split(":")[0]
-        cmds.namespace(rm=namespace, mergeNamespaceWithRoot=1)
-
-    def import_latest(self):
-        # Get latest file from previews reference directory
-        list_of_files = glob.glob(self.ref_dir + "*.ma")
-        latest_file = max(list_of_files, key=os.path.getctime)
-
-        # Import new reference
-        cmds.file(latest_file, r=True, namespace=self.ref_namespace)
-
-    def reconnect(self):
-        """ BlendShapes old geo to new reference """
-        for geo in self.geo_data:
-            # Cleans Geo name for blendShape node creation
-            name_edit = self.geo_data[geo].split("_")
-            del name_edit[-3:-1]
-            blendShape_name = "_".join(name_edit)
-
-            # Blending old rig geo to new reference
-            blnd_node = cmds.blendShape(self.geo_data[geo], geo, automatic=1, n="{}_End_BS".format(blendShape_name))
-            # Gets number of targets - Sets all weights to 1
-            blnd_weights = cmds.blendShape(blnd_node, q=True, w=1)
-            for y, z in enumerate(blnd_weights): cmds.blendShape(blnd_node, edit=1, w=[(y, 1.0)])
-
-            # Re-assigning shaders
-            cmds.select(geo)
-            cmds.hyperShade(assign=self.shader_data[geo + "_Shader"])
-            cmds.select(cl=1)
-
-            # Rename commmon geo
-            cmds.rename(self.geo_data[geo], "Bind_" + self.geo_data[geo])
-
-    def renameAll(self):
-        main_grp = cmds.ls(sl=1)
-        all_children = cmds.listRelatives(main_grp, children=1, type='transform', ad=1)
-
-        for i in all_children:
-            prefix = i.split("_")[0]
-            if prefix != "Bind": cmds.rename(i, "Bind_" + i)
-
-        cmds.rename(main_grp, "Bind_" + main_grp)
-
-    def run(self):
-        self.load_data()
-        self.import_latest()
-        self.reconnect()
-
 def mirror_vertex_selection(vert_list, mesh):
     """
     Mirror selection translation values and feeds to getClosest function
@@ -1257,6 +949,7 @@ def mirror_vertex_selection(vert_list, mesh):
     # cmds.select(mirror_vert_list, r=1)
 
     return mirror_vert_list
+
 
 def getClosestVertex_v2(mayaMesh, pos=[0,0,0]):
     """
@@ -1403,7 +1096,8 @@ def mirrorSelection(selection):
 
     return mirror_vert_list
 
-def remoteLoc_allJoints(selection):
+
+def remote_loc_all_joints(selection):
     """
     Creates and places joints on each selection
     :param selection:
@@ -1416,10 +1110,10 @@ def remoteLoc_allJoints(selection):
         try: parent_dict.update({i: cmds.listRelatives(i, parent=1)[0]})
         except: continue
 
-    # Unparent all joints - parent to world
+    # Un-parent all joints - parent to world
     cmds.parent(selection, w=1)
     cmds.select(cl=1)
-    remoteCtrl_list = []
+    remote_ctrl_list = []
 
     for joint in selection:
         # Get joint data
@@ -1431,19 +1125,18 @@ def remoteLoc_allJoints(selection):
         new_name = joint.replace("_Jnt", "_RemoteCtrl_Loc")
         # Create locator and space grp
         remote_loc = cmds.spaceLocator(n=new_name)[0]
-        remoteCtrl_grp = cmds.group(remote_loc, n=remote_loc + "_Grp")
+        remote_ctrl_grp = cmds.group(remote_loc, n=remote_loc + "_Grp")
         # Place locator grp on joint position
-        cmds.xform(remoteCtrl_grp, t=translate, ro=[rotate[2], rotate[1]*-1+180, rotate[0]], s=scale)
+        cmds.xform(remote_ctrl_grp, t=translate, ro=[rotate[2], rotate[1]*-1+180, rotate[0]], s=scale)
         # Append new locator to list
-        remoteCtrl_list.append(remote_loc)
+        remote_ctrl_list.append(remote_loc)
 
     for joint in parent_dict:
-
         cmds.parent(joint, parent_dict[joint])
         cmds.parent(joint.replace("_Jnt", "_RemoteCtrl_Loc_Grp"), parent_dict[joint].replace("_Jnt", "_RemoteCtrl_Loc"))
         cmds.parentConstraint(joint.replace("_Jnt", "_RemoteCtrl_Loc"), joint)
 
-    return remoteCtrl_list, parent_dict
+    return remote_ctrl_list, parent_dict
 
 
 def rename_sel(old, new):
@@ -1470,7 +1163,8 @@ def list_unique(list):
 
     return unique_list
 
-def poleVector_math(dist=0.5):
+
+def pole_vector_math(dist=0.5):
     """
     Calculates the projected vector of a triangle based on
     3 objects selections and places a locator on the position.
@@ -1525,14 +1219,32 @@ def poleVector_math(dist=0.5):
                             (ro.z/math.pi*180.0)))
 
 
+def get_next_index(item_list):
+    """
+    Given a list of strings with sequential indexes, check for the next in sequence
+    :param item_list:
+    :return next int index:
+    """
+    index_list = []
+
+    for loc in item_list:
+        name_split = loc.split('_')
+        for item in name_split:
+            if item.isdigit():
+                index_list.append(int(item))
+
+    new_index = max(index_list) + 1
+    return new_index
+
+
 class RigTemplate:
 
     """
     Class development:
         create template group dict
-        parent system
+        parent system - DONE
         parent template
-        rebuild system
+        rebuild system - DONE
         line between locators
         export system
         import system
@@ -1589,6 +1301,7 @@ class RigTemplate:
 
         self.init_template_sys()
 
+    # CREATE SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def init_template_sys(self):
         """
         Initializes system by searching for tag for tp_rigSystems_rigTemplate tag and getting environment
@@ -1607,7 +1320,6 @@ class RigTemplate:
         self.environment_grp = mc.listConnections('{}.environment_data'.format(self.tag_node), s=1, d=0)[0]
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_grp)))
 
-    # NEW STUFF SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def new_environment(self):
         """
         Creates new group for all template systems with necessary attributes
@@ -1628,10 +1340,15 @@ class RigTemplate:
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_data['group'])))
 
     def new_sys(self, name):
+        """
+        Creates new group for module/system with necessary data attributes and connections
+        :param name:
+        """
         self.sys_data = self.data_templates['sys_data']
         self.sys_data['name'] = name if name else 'tempName'
         self.sys_data['group'] = mc.group(name='{}_sys_grp'.format(name), empty=True)
         mc.parent(self.sys_data['group'], self.environment_data['group'])
+        mc.select(cl=True)
 
         mc.addAttr(self.sys_data['group'], longName='metadata', dataType='string')
         mc.addAttr(self.sys_data['group'], longName='loc_data', dataType='string', multi=True,
@@ -1643,25 +1360,27 @@ class RigTemplate:
 
         self.commit_data(self.sys_data['group'], self.sys_data)
 
-    def new_loc(self, unique_name='', index='', system=''):
+    def new_loc(self, unique_name='', loc_index='', system=''):
         """
         Creates new template locator with metadata attribute
+        :param unique_name:
+        :param loc_index:
+        :param system:
         """
         if system:
             self.load_sys(system)
 
-        if index:
-            loc_index = index
-        else:
+        if not loc_index:
             loc_list = self.list_sys_locs()
             loc_index = 1 if loc_list is None else get_next_index(loc_list)
 
         loc_name = '{}_'.format(unique_name) if unique_name else ''
         name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
 
-        self.loc = mc.spaceLocator(name=name)[0]
+        # self.loc = mc.spaceLocator(name=name)[0]
+        self.loc = mc.joint(name=name)
         mc.addAttr(self.loc, longName='metadata', dataType='string')
-        mc.addAttr(self.loc, longName='system_grp', attributeType='message')
+        # mc.addAttr(self.loc, longName='system_grp', attributeType='message')
         mc.addAttr(self.loc, longName='parent', attributeType='message')
         mc.addAttr(self.loc, longName='child', attributeType='message')
         mc.connectAttr('{}.metadata'.format(self.loc), '{}.loc_data'.format(self.sys_data['group']),
@@ -1677,12 +1396,36 @@ class RigTemplate:
 
         mc.parent(self.loc, self.sys_data['group'])
 
-    def load_sys(self, system=''):
-        if system:
-            self.sys_data['group'] = system
-        else:
-            self.sys_data['group'] = mc.ls(sl=1)[0]
+    # REBUILD SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
+    def rebuild_from_data(self, data):
+        pass
 
+    def rebuild_sys(self):
+        self.update_sys_data()
+
+        self.temp_sys_data = self.sys_data
+        mc.delete(self.sys_data['group'])
+        self.new_sys(self.sys_data['name'])
+
+        for loc in self.temp_sys_data['locators']:
+            self.new_loc(self.temp_sys_data['locators'][loc]['unique_name'],
+                         loc_index=self.temp_sys_data['locators'][loc]['index'])
+            self.loc_data = self.temp_sys_data['locators'][loc]
+            self.commit_data(self.loc, self.loc_data)
+
+        for loc in self.list_sys_locs():
+            self.load_loc(loc)
+            self.update_loc()
+
+        self.update_sys_data()
+
+    def rebuild_loc_from_data(self, data):
+        self.loc_data = data
+        pass
+
+    # LOAD SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
+    def load_sys(self, system=''):
+        self.sys_data['group'] = system if system else mc.ls(sl=1)[0]
         self.load_sys_data()
 
     def load_loc(self, loc=''):
@@ -1694,6 +1437,12 @@ class RigTemplate:
         data = data if data else mc.getAttr('{}.metadata'.format(self.loc))
         self.loc_data = eval(data)
 
+    def load_env_data(self):
+        self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_data['group'])))
+
+    def load_sys_data(self):
+        self.sys_data = eval(mc.getAttr('{}.metadata'.format(self.sys_data['group'])))
+
     def list_systems(self):
         data = mc.listConnections('{}.sys_list'.format(self.environment_data['group']))
         return data
@@ -1702,29 +1451,6 @@ class RigTemplate:
         sys = system if system else self.sys_data['group']
         data = mc.listConnections('{}.loc_data'.format(sys))
         return data
-
-    def set_loc_sys(self, system=''):
-        """
-        Changes loaded locator system
-        :param system:
-        """
-        self.load_sys(self.loc_sys())
-        mc.disconnectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
-                          nextAvailable=1)
-        self.loc_data['system_grp'] = system if system else mc.ls(sl=1)[0]
-        self.load_sys(self.loc_data['system_grp'])
-        mc.connectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
-                       nextAvailable=True)
-
-        loc_list = self.list_sys_locs(self.loc_data['system_grp'])
-        loc_index = get_next_index(loc_list)
-
-        loc_name = '{}_'.format(self.loc_data['unique_name']) if self.loc_data['unique_name'] else ''
-        name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
-        self.loc = mc.rename(self.loc, name)
-        mc.parent(self.loc, self.loc_data['system_grp'])
-
-        self.update_loc_data()
 
     # UPDATE DATA SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def update_loc_data(self):
@@ -1766,9 +1492,6 @@ class RigTemplate:
     def update_template_data(self):
         pass
 
-    def refresh_loc(self):
-        pass
-
     def update_sys_locs_data(self):
         locators = self.list_sys_locs()
 
@@ -1779,8 +1502,41 @@ class RigTemplate:
         self.sys_data['locators'] = locators
         self.commit_data(self.sys_data['group'], self.sys_data)
 
-    def parent_template_sys(self):
-        pass
+    def update_loc(self):
+        mc.xform(self.loc,
+                 t=self.loc_data['position']['t'],
+                 ro=self.loc_data['position']['r'],
+                 ws=True)
+
+        if self.loc_data['parent']:
+            self.set_loc_parent(self.loc_data['parent'])
+
+    # SET SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
+    def commit_data(self, group, data):
+        mc.setAttr('{}.metadata'.format(group), data, type='string')
+
+    def set_loc_sys(self, system=''):
+        """
+        Changes loaded locator system
+        :param system:
+        """
+        self.load_sys(self.loc_sys())
+        mc.disconnectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+                          nextAvailable=1)
+        self.loc_data['system_grp'] = system if system else mc.ls(sl=1)[0]
+        self.load_sys(self.loc_data['system_grp'])
+        mc.connectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
+                       nextAvailable=True)
+
+        loc_list = self.list_sys_locs(self.loc_data['system_grp'])
+        loc_index = get_next_index(loc_list)
+
+        loc_name = '{}_'.format(self.loc_data['unique_name']) if self.loc_data['unique_name'] else ''
+        name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
+        self.loc = mc.rename(self.loc, name)
+        mc.parent(self.loc, self.loc_data['system_grp'])
+
+        self.update_loc_data()
 
     def set_loc_parent(self, parent=''):
         parent = parent if parent else mc.ls(sl=1)[0]
@@ -1802,6 +1558,14 @@ class RigTemplate:
     def set_loc_children(self):
         pass
 
+    def set_loc_index(self, index):
+        new_name = self.loc.replace('{:02d}'.format(self.loc_index()), '{:02d}'.format(index))
+        self.loc = mc.rename(self.loc, new_name)
+        self.update_loc_data()
+
+        return new_name
+
+    # GET SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def loc_sys(self):
         sys = mc.listConnections('{}.metadata'.format(self.loc), s=0, d=1)[0]
         return sys
@@ -1821,18 +1585,17 @@ class RigTemplate:
 
         return index
 
-    def set_loc_index(self, index):
-        new_name = self.loc.replace('{:02d}'.format(self.loc_index()), '{:02d}'.format(index))
-        self.loc = mc.rename(self.loc, new_name)
-        self.update_loc_data()
+    def list_all_loc(self):
+        pass
 
-        return new_name
-
-    def parent_all(self):
+    # ACTION SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
+    def parent_template_sys(self):
         pass
 
     def parent_sys(self):
         locators = self.list_sys_locs()
+        curve_grp = mc.group(em=True, name='{}_crv_grp'.format(self.sys_data['name']))
+        mc.parent(curve_grp, self.sys_data['group'])
 
         for loc in locators:
             self.load_loc(loc)
@@ -1842,23 +1605,22 @@ class RigTemplate:
 
             if parent:
                 mc.parentConstraint(parent, offset_grp, mo=True)
+                mc.scaleConstraint(parent, offset_grp, mo=True)
+
+                # Creating connection line
+                parent_tr = mc.xform(parent, q=True, t=True, ws=True)
+                self_tr = mc.xform(self.loc, q=True, t=True, ws=True)
+                bridge_line = mc.curve(d=True, p=[self_tr, parent_tr], name='{}_crv'.format(self.loc))
+                mc.parent(bridge_line, curve_grp)
+                mc.setAttr("{}.overrideEnabled".format(bridge_line), 1)
+                mc.setAttr("{}.overrideDisplayType".format(bridge_line), 1)
+                mc.skinCluster(self.loc, parent, bridge_line,
+                               toSelectedBones=True,
+                               bindMethod=0,
+                               skinMethod=0,
+                               normalizeWeights=1)
             else:
                 continue
-
-    def unparent_chain(self, system):
-        pass
-
-    def load_env_data(self):
-        self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_data['group'])))
-
-    def load_sys_data(self):
-        self.sys_data = eval(mc.getAttr('{}.metadata'.format(self.sys_data['group'])))
-
-    def commit_data(self, group, data):
-        mc.setAttr('{}.metadata'.format(group), data, type='string')
-
-    def update_grp_data(self):
-        pass
 
     def export_template_data(self, system):
         """
@@ -1869,64 +1631,8 @@ class RigTemplate:
     def import_template_data(self):
         pass
 
-    def rebuild_from_data(self, data):
-        pass
-
-    def rebuild_sys(self):
-        self.update_sys_data()
-
-        self.temp_sys_data = self.sys_data
-        mc.delete(self.sys_data['group'])
-        self.new_sys(self.sys_data['name'])
-
-        for loc in self.temp_sys_data['locators']:
-            self.new_loc(self.temp_sys_data['locators'][loc]['unique_name'],
-                         index=self.temp_sys_data['locators'][loc]['index'])
-            self.loc_data = self.temp_sys_data['locators'][loc]
-            self.commit_data(self.loc, self.loc_data)
-
-        for loc in self.list_sys_locs():
-            self.load_loc(loc)
-            self.update_loc()
-
-        self.update_sys_data()
-
-    def update_loc(self):
-        mc.xform(self.loc,
-                 t=self.loc_data['position']['t'],
-                 ro=self.loc_data['position']['r'],
-                 ws=True)
-
-        if self.loc_data['parent']:
-            self.set_loc_parent(self.loc_data['parent'])
-
-    def rebuild_loc_from_data(self, data):
-        self.loc_data = data
-        pass
-
     def reorder_indexes(self):
         """
         Reorder system indexes in selection order
         """
         pass
-
-    def list_all_loc(self):
-        pass
-
-
-def get_next_index(item_list):
-    """
-    Given a list of strings with sequential indexes, check for the next in sequence
-    :param item_list:
-    :return next int index:
-    """
-    index_list = []
-
-    for loc in item_list:
-        name_split = loc.split('_')
-        for item in name_split:
-            if item.isdigit():
-                index_list.append(int(item))
-
-    new_index = max(index_list) + 1
-    return new_index

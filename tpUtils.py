@@ -1,16 +1,15 @@
 from __future__ import division
 import maya.cmds as mc
 import maya.cmds as cmds
-import os
-import maya.OpenMaya as OpenMaya
-import maya.OpenMayaUI as OpenMayaUI
 import maya.OpenMaya as om
 import maya.api.OpenMaya as om2
+import maya.OpenMayaUI as OpenMayaUI
 import struct
 import glob
 import math
+import os
 
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 # Name:        tp_utilityTools v4
 # Purpose:     Code snippets, further to be added in a interface
 #
@@ -21,11 +20,12 @@ import math
 # Created:     10/23/2019
 # Copyright:   (c) Thiago Paulino 2019
 # Licence:     MIT
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
+
 
 # FOLLICLE SECTION __________________________________________________________________
 
-def sysFromEdgeLoop(egde, surface, name=""):
+def sys_from_edge_loop(egde, surface, name=""):
     # Extract curve from edge
     # Build Anchor Curve from Slc Edges-> Get Name -> Del History
     cmds.select(edge_slct)
@@ -50,10 +50,11 @@ def sysFromEdgeLoop(egde, surface, name=""):
     # Connect control/joint transforms
 
     # Create system on surface
-    surface_sys_data = follicleOnClosestPoint(surface, locator_list, name)
+    surface_sys_data = follicle_on_closest_point(surface, locator_list, name)
     # Group and organize system on Outliner
 
-def follicleOnClosestPoint(surface, locator_list, name=""):
+
+def follicle_on_closest_point(surface, locator_list, name=""):
 
     surface_shape = cmds.listRelatives(surface, type="shape")[0]
     follicle_dict = {}
@@ -101,10 +102,13 @@ def connectLocatorToCrv(loc_list, crv):
         cmds.setAttr(pciNode + ".parameter", loc_u)
         cmds.connectAttr(pciNode + ".position" , loc + ".t")
 
-'''
-# Locator on CV's - Select curve, run script
-'''
+
 def locatorOnCVs(path_crv):
+    """
+    Locator on CV's - Select curve, run script
+    :param path_crv:
+    :return:
+    """
     cmds.select(cl=1)
     cv_list = cmds.getAttr(path_crv + '.cv[:]')
     locator_list = []
@@ -119,18 +123,13 @@ def locatorOnCVs(path_crv):
     return locator_list
 
 
-'''
-# Distribute follicles on surface + joints and controls
-'''
-# follicle2D(name="testFlc", rows=10.0, colums=10.0, widthPercentage=1, hightPercentage=1)
-
-
 def follicle_2d(name="", rows=3, colums=3, widthPercentage=1, hightPercentage=1):
     """
     Distribute follicles in a 2D array of a polygon surface
+    Distribute follicles on surface + joints and controls
     """
 
-    # If colums/rows equals 1, position in center
+    # If columns/rows equals 1, position in center
     if colums == 1.0: surface_uStep = 0.5
     else: surface_uStep = (100 / (colums-1) / 100) * widthPercentage
     if rows == 1.0: surface_vStep = 0.5
@@ -206,41 +205,31 @@ def createFollicle(inputSurface=[], scaleGrp='', uVal=0.5, vVal=0.5, hide=1, nam
     # Return the follicle and it's shape
     return follicleTrans, follicleShape
 
-'''
-# Place locator in object center
-import maya.cmds as cmds
 
-select = cmds.ls(sl=1)
-axis_x = axis_y = axis_z = 0
+def find_center():
+    """
+    Place locator in object center
+    :return:
+    """
+    select = cmds.ls(sl=1)
+    axis_x = axis_y = axis_z = 0
 
-for i in select:
-    axis_x += cmds.xform(i, q=1, t=1)[0]
-    axis_y += cmds.xform(i, q=1, t=1)[1]
-    axis_z += cmds.xform(i, q=1, t=1)[2]
+    for i in select:
+        axis_x += cmds.xform(i, q=1, t=1)[0]
+        axis_y += cmds.xform(i, q=1, t=1)[1]
+        axis_z += cmds.xform(i, q=1, t=1)[2]
 
-axis_x_avg = axis_x/len(select)
-axis_y_avg = axis_y/len(select)
-axis_z_avg = axis_z/len(select)
+    axis_x_avg = axis_x/len(select)
+    axis_y_avg = axis_y/len(select)
+    axis_z_avg = axis_z/len(select)
 
-avg = [axis_x_avg, axis_y_avg, axis_z_avg]
+    avg = [axis_x_avg, axis_y_avg, axis_z_avg]
 
-locator = cmds.spaceLocator()
-cmds.xform(locator, ws=1, t=avg)
-'''
+    locator = cmds.spaceLocator()
+    cmds.xform(locator, ws=1, t=avg)
 
-'''
-# Multi connect Attributes
-list1_attr = cmds.ls(sl=1)
-list2_attr = cmds.ls(sl=1)
-
-for n, i in enumerate(list1_attr):
-    cmds.connectAttr(i + '.translate', list2_attr[n] + '.translate')
-    cmds.connectAttr(i + '.rotate', list2_attr[n] + '.rotate')
-    cmds.connectAttr(i + '.scale', list2_attr[n] + '.scale')
-'''
 
 # JOINT SECTION __________________________________________________________________
-
 
 def jointChainMultiCrv(addIk=0, bind=0, loft=0, cluster=0, name=""):
     """
@@ -386,37 +375,15 @@ for i in jnt_list:
     cmds.group(jnt_loc, n=jnt_loc[0] + '_Grp')
 '''
 
-'''
-# Parent in selection order
-'''
+
 def parentInOrder(sel):
+    """
+    Parent in selection order
+    :param sel:
+    """
     for z, i in enumerate(sel):
         cmds.parent(sel[z+1], i)
         if z+1 >= len(sel)-1: break
-
-"""
-# Create joint chain from edge selection
-# Under contruction
-def chainFromEdge(reverse=0, crvOnly=0):
-    sel = cmds.sl(ls=1)
-    
-    polyToCurve -form 2 -degree 3 -conformToSmoothMeshPreview 1 #mel
-    curveDeg = cmds.getAttr(v_curve_shape + ".degree")
-    curveSpa = cmds.getAttr(v_curve_shape + ".spans")
-    # CV's = degrees + spans
-    cvCount = curveDeg + curveSpa
-    
-    # Deletes extra cvs, rebuilds curve, del hist, unparent curve
-    cmds.delete(v_curve[0] + '.cv[{}]'.format(cvCount-2), v_curve[0] + '.cv[1]')
-    cmds.rebuildCurve(v_curve, ch=0, rpo=1, rt=0, end=1, kr=0, kcp=1, kep=1, kt=0, d=1, tol=0.01)
-    cmds.rebuildCurve(v_curve, ch=0, rpo=1, rt=0, end=1, kr=0, kcp=1, kep=1, kt=0, d=3, tol=0.01)
-    
-    cv_list = cmds.getAttr(path_crv + '.cv[:]')
-    
-    for i, cv in enumerate(cv_list):
-        ctrl = tp_staticCtrl('ctrl_cv' + str(i))
-        cmds.xform(ctrl[1], t= cv)
-"""
 
 
 # CONTROL SECTION __________________________________________________________________
@@ -433,6 +400,7 @@ def build_ctrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, of
     :return [ctrl, ctrl_grp, offset_ctrl_grp]:
     """
     pack = []
+    c1 = ''
 
     if ctrl_type == "cube":
         c1 = cmds.curve(n=name + sufix,
@@ -541,15 +509,16 @@ def add_offset_grp(user_item):
     return grp
 
 
-'''
-# Controls on CV's
-path_crv = cmds.ls(sl=1)[0]
-cv_list = cmds.getAttr(path_crv + '.cv[:]')
+def control_on_cv_list():
+    """
+    Controls on CV's
+    """
+    path_crv = cmds.ls(sl=1)[0]
+    cv_list = cmds.getAttr(path_crv + '.cv[:]')
 
-for i, cv in enumerate(cv_list):
-    ctrl = tp_staticCtrl('ctrl_cv' + str(i))
-    cmds.xform(ctrl[1], t= cv)
-'''
+    for i, cv in enumerate(cv_list):
+        ctrl = tp_staticCtrl('ctrl_cv' + str(i))
+        cmds.xform(ctrl[1], t= cv)
 
 
 def place_on_clusters(name="", type="circle", scale=1, color=(1, 1, 1), parent_constraint=0):
@@ -600,7 +569,7 @@ def place_on_joints(name, scale=1, color=(1,1,1), parent_constraint=0):
 
 def parent_fk_order():
     """
-    Parents in FK Order - Select Ctrl Grps, Last to First
+    Parents in FK Order - Select Ctrl Group, Last to First
     """
     groups = cmds.ls(sl=1)
     ctrls = []
@@ -790,71 +759,7 @@ def resizeImage(sourceImage, outputImage, width, height):
     image.writeToFile( outputImage, 'png')
 
 
-'''
-# BlendShape with output geo name and envelope to 1
-my_string = cmds.ls(sl=1)[1]
-blnd_name = my_string.split("_CH",1)[0] 
-
-blnd_node = cmds.blendShape(automatic=1, n="{}_FinalOutput_BlendShape".format(blnd_name))
-# Gets number of shapes - Sets all weights to 1
-blnd_weights = cmds.blendShape(blnd_node, q=True, w=1)
-for y, z in enumerate(blnd_weights): cmds.blendShape(blnd_node, edit=1, w=[(y, 1.0)])
-'''
-
-
-# bd_blendLists("_Lattice", 1)
-def bd_blendLists(tag, addTarg=0):
-    """
-    Bardel Reference Geo
-    BlandShapes Rig Geo to Reference geo
-    """
-
-    listB = cmds.ls(sl=1)
-    reference_dict = {}
-
-    for i in listB:
-        # Name search based on current naming structure
-        name_split = i.split(":", 1)
-        blend_name = name_split[1].split("_Geo", 1)
-        new_name = blend_name[0] + tag + "_Com_Geo" + blend_name[1]
-
-        # Getting blendShape node
-        # Note - In this rig, all ref geo is being controlled by a joint
-        # Therefore - going through skinCluster to find blendShape node
-        shapes = cmds.listRelatives(i, s=1)
-        skinCluster = cmds.listConnections(shapes[1], type="skinCluster")
-        blend_node = cmds.listConnections(skinCluster[0], type="blendShape")
-
-        reference_dict.update({new_name: [i, blend_node]})
-
-    for i in reference_dict:
-        # Change sufix in case it's character or else
-        blend_name = blnd_name = i.split("_PR", 1)[0]
-
-        if addTarg == 0:
-            blend_node = cmds.blendShape(i, reference_dict[i][0], automatic=1, n="{}_End_BlendShape".format(blend_name))
-            blend_weights = cmds.blendShape(blend_node, q=True, w=1)
-        else:
-            cmds.blendShape(reference_dict[i][1], e=1, t=(reference_dict[i][0], 1, i, 1.0))
-            blend_node = reference_dict[i][1]
-            blend_weights = cmds.blendShape(reference_dict[i][1], q=True, w=1)
-        # Gets number of shapes - Sets all weights to 1
-        for y, z in enumerate(blend_weights): cmds.blendShape(blend_node, edit=1, w=[(y, 1.0)])
-
-'''
-import maya.cmds as cmds
-from maya.mel import eval
-
-cmds.setAttr('defaultResolution.aspectLock', 0)
-cmds.setAttr('defaultResolution.width', 1920)
-cmds.setAttr('defaultResolution.height', 1080)
-cmds.select('defaultResolution')
-eval('ToggleAttributeEditor')
-eval('checkAspectLockHeight2 "defaultResolution"')
-eval('checkAspectLockWidth2 "defaultResolution"')
-'''
-
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 # Name:        get_image_size
 # Purpose:     extract image dimensions given a file path using just
 #              core modules
@@ -864,9 +769,10 @@ eval('checkAspectLockWidth2 "defaultResolution"')
 # Created:     26/09/2013
 # Copyright:   (c) Paulo Scardine 2013
 # Licence:     MIT
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 class UnknownImageFormat(Exception):
     pass
+
 
 def get_image_size(file_path):
     """
@@ -951,7 +857,7 @@ def mirror_vertex_selection(vert_list, mesh):
     return mirror_vert_list
 
 
-def getClosestVertex_v2(mayaMesh, pos=[0,0,0]):
+def getClosestVertex_v2(mayaMesh, pos=(0, 0, 0)):
     """
     Returns the closest vertex given a mesh and a position [x,y,z] in world space.
     Uses om2.MfnMesh.getClosestPoint() returned face ID and iterates through face's vertices
@@ -987,7 +893,7 @@ def getClosestVertex_v2(mayaMesh, pos=[0,0,0]):
     return closest
 
 # Not in use
-def getClosestVertex(mayaMesh, pos=[0,0,0]):
+def getClosestVertex(mayaMesh, pos=(0, 0, 0)):
     """
     Returns the closest vertex given a mesh and a position [x,y,z] in world space.
     Uses om2.MfnMesh.getClosestPoint() returned face ID and iterates through face's vertices
@@ -1022,12 +928,12 @@ def getClosestVertex(mayaMesh, pos=[0,0,0]):
 
     return closest
 
+
 def xDirection_positive(curve):
     """
     True if curve X direction is positive,
     False if curve X direction is negative
     """
-
     x_direction = True
     # Get degrees and spans to calculte CV's
     curve_shape = cmds.listRelatives(curve, s=1)[0]
@@ -1147,16 +1053,16 @@ def rename_sel(old, new):
         mc.rename(item, name)
 
 
-def list_unique(list):
+def list_unique(item_list):
     """
     Find unique items in a list
-    :param list:
+    :param item_list:
     :return unique items list:
     """
     unique_list = []
 
     # traverse for all elements
-    for x in list:
+    for x in item_list:
         # check if exists in unique_list or not
         if x not in unique_list:
             unique_list.append(x)
@@ -1237,18 +1143,31 @@ def get_next_index(item_list):
     return new_index
 
 
+class handle:
+    pass
+
+
+class module:
+    pass
+
+
+class template:
+    pass
+
+
 class RigTemplate:
 
     """
     Class development:
-        create template group dict
-        parent system - DONE
         parent template
+        export/import system data
+        export/import template
+
+        dev update_template_data - DONE
+        create template group dict - DONE
+        line between locators - DONE
+        parent system - DONE
         rebuild system - DONE
-        line between locators
-        export system
-        import system
-        export/import all
     """
 
     def __init__(self):
@@ -1350,6 +1269,8 @@ class RigTemplate:
         mc.parent(self.sys_data['group'], self.environment_data['group'])
         mc.select(cl=True)
 
+        mc.addAttr(self.sys_data['group'], longName='parent', attributeType='message')
+        mc.addAttr(self.sys_data['group'], longName='child', attributeType='message')
         mc.addAttr(self.sys_data['group'], longName='metadata', dataType='string')
         mc.addAttr(self.sys_data['group'], longName='loc_data', dataType='string', multi=True,
                    indexMatters=False)
@@ -1377,10 +1298,9 @@ class RigTemplate:
         loc_name = '{}_'.format(unique_name) if unique_name else ''
         name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
 
-        # self.loc = mc.spaceLocator(name=name)[0]
+        mc.select(cl=1)
         self.loc = mc.joint(name=name)
         mc.addAttr(self.loc, longName='metadata', dataType='string')
-        # mc.addAttr(self.loc, longName='system_grp', attributeType='message')
         mc.addAttr(self.loc, longName='parent', attributeType='message')
         mc.addAttr(self.loc, longName='child', attributeType='message')
         mc.connectAttr('{}.metadata'.format(self.loc), '{}.loc_data'.format(self.sys_data['group']),
@@ -1397,8 +1317,26 @@ class RigTemplate:
         mc.parent(self.loc, self.sys_data['group'])
 
     # REBUILD SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
-    def rebuild_from_data(self, data):
+    def rebuild_template_from_data(self, template_data):
         pass
+
+    def rebuild_template(self):
+        pass
+
+    def rebuild_sys_from_data(self, sys_data):
+        self.new_sys(sys_data['name'])
+
+        for loc in sys_data['locators']:
+            self.new_loc(sys_data['locators'][loc]['unique_name'],
+                         loc_index=sys_data['locators'][loc]['index'])
+            self.loc_data = sys_data['locators'][loc]
+            self.commit_data(self.loc, self.loc_data)
+
+        for loc in self.list_sys_locs():
+            self.load_loc(loc)
+            self.update_loc()
+
+        self.update_sys_data()
 
     def rebuild_sys(self):
         self.update_sys_data()
@@ -1490,7 +1428,20 @@ class RigTemplate:
         self.load_loc(current_loc)
 
     def update_template_data(self):
-        pass
+        current_module = self.environment_data['group']
+        data_dict = {}
+        data_array = mc.listAttr('{}.sys_data'.format(self.environment_data['group']), multi=1)
+
+        for plug in data_array:
+            module_name = mc.listConnections('{}.{}'.format(self.environment_data['group'], plug), s=1, d=0)[0]
+            self.load_sys(module_name)
+            self.update_sys_data()
+            module_data = eval(mc.getAttr('{}.{}'.format(self.environment_data['group'], plug)))
+            data_dict.update({module_name: module_data})
+
+        self.environment_data['systems'] = data_dict
+        self.commit_data(self.environment_data['group'], self.environment_data)
+        self.load_sys(current_module)
 
     def update_sys_locs_data(self):
         locators = self.list_sys_locs()
@@ -1614,13 +1565,26 @@ class RigTemplate:
                 mc.parent(bridge_line, curve_grp)
                 mc.setAttr("{}.overrideEnabled".format(bridge_line), 1)
                 mc.setAttr("{}.overrideDisplayType".format(bridge_line), 1)
-                mc.skinCluster(self.loc, parent, bridge_line,
-                               toSelectedBones=True,
-                               bindMethod=0,
-                               skinMethod=0,
-                               normalizeWeights=1)
+                mc.skinCluster(self.loc, parent, bridge_line, toSelectedBones=True, bindMethod=0,
+                               skinMethod=0, normalizeWeights=1)
             else:
                 continue
+
+    # def bridge_curve(self):
+    #     if self.loc_parent():
+    #         parent_tr = mc.xform(self.loc_parent(), q=True, t=True, ws=True)
+    #         self_tr = mc.xform(self.loc, q=True, t=True, ws=True)
+    #
+    #         bridge_line = mc.curve(d=True, p=[self_tr, parent_tr], name='{}_crv'.format(self.loc))
+    #         mc.parent(bridge_line, curve_grp)
+    #
+    #         mc.setAttr("{}.overrideEnabled".format(bridge_line), 1)
+    #         mc.setAttr("{}.overrideDisplayType".format(bridge_line), 1)
+    #         mc.skinCluster(self.loc, parent, bridge_line,
+    #                        toSelectedBones=True,
+    #                        bindMethod=0,
+    #                        skinMethod=0,
+    #                        normalizeWeights=1)
 
     def export_template_data(self, system):
         """

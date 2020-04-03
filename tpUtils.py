@@ -1160,8 +1160,13 @@ class RigTemplate:
     """
     Class development:
         parent template
+        rebuild template from data
         export/import system data
-        export/import template
+        export/import template data
+        split class into
+            handle
+            module
+            template
 
         dev update_template_data - DONE
         create template group dict - DONE

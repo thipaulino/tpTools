@@ -955,7 +955,7 @@ def swapHierarchy():
     # This must be out of the function
     all_group = cmds.listRelatives(cmds.ls(sl=1), ad=1)
     swap_geo = cmds.listRelatives(cmds.ls(sl=1), c=1)
-    #============
+    # ============
 
     geo_parent_dict = {}
 
@@ -977,6 +977,11 @@ def swapHierarchy():
 
 
 def mirrorSelection(selection):
+    """
+    Mirror vertex selection using closest point on mesh
+    :param selection:
+    :return mirror vertex list:
+    """
     selection = cmds.filterExpand(selection, sm=31)
     geo = selection[0].split('.')[0]
     geo_shape = cmds.listRelatives(geo, type='shape')[0]
@@ -1013,8 +1018,10 @@ def remote_loc_all_joints(selection):
 
     # Store hierarchy position for every joint
     for i in selection:
-        try: parent_dict.update({i: cmds.listRelatives(i, parent=1)[0]})
-        except: continue
+        try:
+            parent_dict.update({i: cmds.listRelatives(i, parent=1)[0]})
+        except:
+            continue
 
     # Un-parent all joints - parent to world
     cmds.parent(selection, w=1)
@@ -1159,15 +1166,40 @@ class RigTemplate:
 
     """
     Class development:
-        parent template
-        rebuild template from data
         export/import system data
         export/import template data
+        add cube shape to joint
+        add annotation to modules
+        add position by vertex average
+            switchable mesh name
+            manual position override
+        add set index by parent order
+        add root joint on environment
+        add mirror selected joints
+        add mirror system
+        add nested systems (necessary)
+        add vertex stash to store random vertex data
+        reset index
+            from parent data
+            from selection order
         split class into
             handle
             module
             template
+        duplicate sys with different name
 
+        fixes
+            error when root not assigned - DONE
+            error when no locator is not loaded
+            set root happening on locator level
+            connection lines double transforming
+
+        parent systems - DONE
+            add attribute to loc - DONE
+            add attribute to sys - DONE
+        rebuild template from data - DONE
+        set module root - DONE
+            update position on rebuild - DONE
         dev update_template_data - DONE
         create template group dict - DONE
         line between locators - DONE
@@ -1199,7 +1231,12 @@ class RigTemplate:
             'sys_data': {
                 'name': '',
                 'group': '',
-                'locators': {}},
+                'position': {
+                    't': [],
+                    'r': [],
+                    's': []},
+                'locators': {},
+                'root': ''},
 
             'loc_data': {
                 'parent': '',
@@ -1213,7 +1250,8 @@ class RigTemplate:
                 'system_grp': '',
                 'system_plug': '',  # Used to retrieve loc name
                 'ref_vertex': [],
-                'joint': ''},
+                'joint': '',
+                'root': False},
 
             'tag_data': {
                 'creation_date': '',
@@ -1244,7 +1282,7 @@ class RigTemplate:
         self.environment_grp = mc.listConnections('{}.environment_data'.format(self.tag_node), s=1, d=0)[0]
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_grp)))
 
-    def new_environment(self):
+    def new_environment(self, name=''):
         """
         Creates new group for all template systems with necessary attributes
         Connects to tag group for easy class access
@@ -1274,11 +1312,13 @@ class RigTemplate:
         mc.parent(self.sys_data['group'], self.environment_data['group'])
         mc.select(cl=True)
 
+        mc.addAttr(self.sys_data['group'], longName='root', dataType='string')
         mc.addAttr(self.sys_data['group'], longName='parent', attributeType='message')
         mc.addAttr(self.sys_data['group'], longName='child', attributeType='message')
+        mc.addAttr(self.sys_data['group'], longName='sys_parent', attributeType='message')
         mc.addAttr(self.sys_data['group'], longName='metadata', dataType='string')
-        mc.addAttr(self.sys_data['group'], longName='loc_data', dataType='string', multi=True,
-                   indexMatters=False)
+        mc.addAttr(self.sys_data['group'], longName='loc_data', dataType='string',
+                   multi=True, indexMatters=False)
 
         mc.connectAttr('{}.metadata'.format(self.sys_data['group']),
                        '{}.sys_data'.format(self.environment_data['group']),
@@ -1286,18 +1326,18 @@ class RigTemplate:
 
         self.commit_data(self.sys_data['group'], self.sys_data)
 
-    def new_loc(self, unique_name='', loc_index='', system=''):
+    def new_loc(self, unique_name='', loc_index='', system='', root=False):
         """
         Creates new template locator with metadata attribute
         :param unique_name:
         :param loc_index:
         :param system:
+        :param root:
         """
         if system:
             self.load_sys(system)
-
         if not loc_index:
-            loc_list = self.list_sys_locs()
+            loc_list = self.sys_members()  # place outside loc creation - encapsulate
             loc_index = 1 if loc_list is None else get_next_index(loc_list)
 
         loc_name = '{}_'.format(unique_name) if unique_name else ''
@@ -1308,68 +1348,89 @@ class RigTemplate:
         mc.addAttr(self.loc, longName='metadata', dataType='string')
         mc.addAttr(self.loc, longName='parent', attributeType='message')
         mc.addAttr(self.loc, longName='child', attributeType='message')
+        mc.addAttr(self.loc, longName='sys_child', attributeType='message')
         mc.connectAttr('{}.metadata'.format(self.loc), '{}.loc_data'.format(self.sys_data['group']),
                        nextAvailable=True)
+        if root:
+            self.set_root()  # re-evaluate
 
         self.loc_data = self.data_templates['loc_data']
         self.loc_data.update({
             'unique_name': unique_name,
             'system_grp': self.sys_data['group'],
             'system_plug': mc.listConnections('{}.metadata'.format(self.loc), d=1, s=0, p=1)[0].split('.')[1],
-            'name': self.loc})
+            'name': self.loc,
+            'root': True if root else False})
         self.commit_data(self.loc, self.loc_data)
 
         mc.parent(self.loc, self.sys_data['group'])
 
     # REBUILD SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def rebuild_template_from_data(self, template_data):
-        pass
+        # rebuild environment
+        self.init_template_sys()
+        # rebuild all systems
+        for sys in template_data['systems']:
+            self.rebuild_sys_from_data(template_data['systems'][sys])
+
+        for sys in template_data['systems']:
+            self.load_sys(sys)
+            if template_data['systems'][sys]['sys_parent']:
+                self.set_sys_parent(template_data['systems'][sys]['sys_parent'])
 
     def rebuild_template(self):
-        pass
+        self.update_template_data()
+        mc.delete(self.environment_data['group'])
+        self.rebuild_template_from_data(self.environment_data)
 
     def rebuild_sys_from_data(self, sys_data):
+        """
+        Rebuilds single system based on data dictionary
+        :param sys_data:
+        :return:
+        """
         self.new_sys(sys_data['name'])
 
+        # set group position to match root joint
+        mc.xform(self.sys_data['group'],
+                 t=sys_data['locators'][sys_data['root']]['position']['t'],
+                 ro=sys_data['locators'][sys_data['root']]['position']['r'],
+                 ws=True)
+
         for loc in sys_data['locators']:
+            # rebuild locator
             self.new_loc(sys_data['locators'][loc]['unique_name'],
                          loc_index=sys_data['locators'][loc]['index'])
             self.loc_data = sys_data['locators'][loc]
             self.commit_data(self.loc, self.loc_data)
 
-        for loc in self.list_sys_locs():
+        for loc in self.sys_members():
+            # reposition locator based on commited data
             self.load_loc(loc)
             self.update_loc()
+
+        if sys_data['root']:
+            # reconnects root locator to system according to data
+            self.set_root(sys_data['root'])
 
         self.update_sys_data()
 
     def rebuild_sys(self):
         self.update_sys_data()
-
-        self.temp_sys_data = self.sys_data
         mc.delete(self.sys_data['group'])
-        self.new_sys(self.sys_data['name'])
+        self.rebuild_sys_from_data(self.sys_data)
 
-        for loc in self.temp_sys_data['locators']:
-            self.new_loc(self.temp_sys_data['locators'][loc]['unique_name'],
-                         loc_index=self.temp_sys_data['locators'][loc]['index'])
-            self.loc_data = self.temp_sys_data['locators'][loc]
-            self.commit_data(self.loc, self.loc_data)
-
-        for loc in self.list_sys_locs():
-            self.load_loc(loc)
-            self.update_loc()
-
-        self.update_sys_data()
-
-    def rebuild_loc_from_data(self, data):
-        self.loc_data = data
+    def reposition_system(self):
+        root = mc.listConnections('{}.root'.format(self.sys_data['group']), s=True, d=False)[0]
         pass
 
     # LOAD SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def load_sys(self, system=''):
-        self.sys_data['group'] = system if system else mc.ls(sl=1)[0]
-        self.load_sys_data()
+        group = system if system else mc.ls(sl=1)[0]
+        self.load_sys_data(group)
+
+    def load_sys_data(self, system=''):
+        self.sys_data = eval(mc.getAttr('{}.metadata'.format(system)))
 
     def load_loc(self, loc=''):
         self.loc = loc if loc else mc.ls(sl=1)[0]
@@ -1382,9 +1443,6 @@ class RigTemplate:
 
     def load_env_data(self):
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_data['group'])))
-
-    def load_sys_data(self):
-        self.sys_data = eval(mc.getAttr('{}.metadata'.format(self.sys_data['group'])))
 
     def list_systems(self):
         data = mc.listConnections('{}.sys_list'.format(self.environment_data['group']))
@@ -1402,7 +1460,6 @@ class RigTemplate:
 
         self.loc_data.update({
             'name': self.loc,
-            'unique_name': self.loc_data['unique_name'],
             'parent': '' if parent is None else str(parent[0]),
             'child': '' if child is None else str(child[0]),
             'system_grp': self.loc_sys(),
@@ -1410,46 +1467,28 @@ class RigTemplate:
                          'r': mc.xform(self.loc, q=1, ro=1, ws=1),
                          's': mc.xform(self.loc, q=1, s=1, ws=1)},
             'index': self.loc_index(),
-            'ref_vertex': self.loc_data['ref_vertex'],
-            'joint': self.loc_data['joint']
         })
 
         self.commit_data(self.loc, self.loc_data)
 
     def update_sys_data(self):
-        current_loc = self.loc
-        data_dict = {}
-        data_array = mc.listAttr('{}.loc_data'.format(self.sys_data['group']), multi=1)
+        members_data = self.sys_members_data()
+        root = self.sys_root()
+        parent = self.sys_parent()
 
-        for plug in data_array:
-            loc = mc.listConnections('{}.{}'.format(self.sys_data['group'], plug), s=1, d=0)[0]
-            self.load_loc(loc)
-            self.update_loc_data()
-            loc_data = eval(mc.getAttr('{}.{}'.format(self.sys_data['group'], plug)))
-            data_dict.update({loc: loc_data})
+        self.sys_data.update({
+            'locators': members_data,
+            'root': root,
+            'sys_parent': parent})
 
-        self.sys_data['locators'] = data_dict
         self.commit_data(self.sys_data['group'], self.sys_data)
-        self.load_loc(current_loc)
 
     def update_template_data(self):
-        current_module = self.environment_data['group']
-        data_dict = {}
-        data_array = mc.listAttr('{}.sys_data'.format(self.environment_data['group']), multi=1)
-
-        for plug in data_array:
-            module_name = mc.listConnections('{}.{}'.format(self.environment_data['group'], plug), s=1, d=0)[0]
-            self.load_sys(module_name)
-            self.update_sys_data()
-            module_data = eval(mc.getAttr('{}.{}'.format(self.environment_data['group'], plug)))
-            data_dict.update({module_name: module_data})
-
-        self.environment_data['systems'] = data_dict
+        self.environment_data['systems'] = self.template_members_data()
         self.commit_data(self.environment_data['group'], self.environment_data)
-        self.load_sys(current_module)
 
     def update_sys_locs_data(self):
-        locators = self.list_sys_locs()
+        locators = self.sys_members()
 
         for loc in locators:
             self.load_loc(loc)
@@ -1471,6 +1510,13 @@ class RigTemplate:
     def commit_data(self, group, data):
         mc.setAttr('{}.metadata'.format(group), data, type='string')
 
+    def set_root(self, loc_choice=''):
+        """
+        Connect and sets current loc/joint to root attribute
+        """
+        loc = loc_choice if loc_choice else self.loc
+        mc.connectAttr('{}.metadata'.format(loc), '{}.root'.format(self.sys_data['group']))
+
     def set_loc_sys(self, system=''):
         """
         Changes loaded locator system
@@ -1484,7 +1530,7 @@ class RigTemplate:
         mc.connectAttr('{}.system_grp'.format(self.loc), '{}.loc_list'.format(self.sys_data['group']),
                        nextAvailable=True)
 
-        loc_list = self.list_sys_locs(self.loc_data['system_grp'])
+        loc_list = self.sys_members(self.loc_data['system_grp'])
         loc_index = get_next_index(loc_list)
 
         loc_name = '{}_'.format(self.loc_data['unique_name']) if self.loc_data['unique_name'] else ''
@@ -1521,15 +1567,64 @@ class RigTemplate:
 
         return new_name
 
+    def set_sys_parent(self, loc=''):
+        parent_loc = loc if loc else mc.ls(sl=1)[0]
+        mc.connectAttr('{}.sys_child'.format(parent_loc), '{}.sys_parent'.format(self.sys_data['group']))
+
+        self.update_sys_data()
+
     # GET SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
+    def template_members(self):
+        members = mc.listConnections('{}.sys_data'.format(self.environment_data['group']))
+        return members
+
+    def template_members_data(self):
+        current_sys = self.sys_data['group']
+        members = self.template_members()
+        members_data = {}
+
+        for member in members:
+            self.load_sys(member)
+            self.load_loc(self.sys_members()[0])
+            self.update_sys_data()
+            data = self.sys_data
+            members_data.update({member: data})
+
+        self.load_sys(current_sys)
+        return members_data
+
+    def sys_parent(self):
+        parent = mc.listConnections('{}.sys_parent'.format(self.sys_data['group']), s=1, d=0)
+        return '' if parent is None else parent[0]
+
+    def sys_root(self):
+        root = mc.listConnections('{}.root'.format(self.sys_data['group']), s=1, d=0)
+        return '' if root is None else root[0]
+
+    def sys_members_data(self):
+        current_loc = self.loc
+        members_data = {}
+
+        for member in self.sys_members():
+            self.load_loc(member)
+            self.update_loc_data()
+            members_data.update({member: self.loc_data})
+
+        self.load_loc(current_loc)
+        return members_data
+
+    def sys_members(self, system=''):
+        sys = system if system else self.sys_data['group']
+        members = mc.listConnections('{}.loc_data'.format(sys))
+        return members
+
     def loc_sys(self):
-        sys = mc.listConnections('{}.metadata'.format(self.loc), s=0, d=1)[0]
-        return sys
+        sys = mc.listConnections('{}.metadata'.format(self.loc), s=0, d=1)
+        return '' if sys is None else sys[0]
 
     def loc_parent(self):
         parent_query = mc.listConnections('{}.parent'.format(self.loc), s=1, d=0)
-        parent = '' if parent_query is None else parent_query[0]
-        return parent
+        return '' if parent_query is None else parent_query[0]
 
     def loc_index(self):
         name_split = self.loc.split('_')
@@ -1545,11 +1640,24 @@ class RigTemplate:
         pass
 
     # ACTION SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
-    def parent_template_sys(self):
+    def check_root(self):
         pass
 
+    def parent_template(self):
+        for sys in self.template_members():
+            self.load_sys(sys)
+            self.parent_sys()
+
+            if self.sys_parent():
+                mc.parentConstraint(self.sys_parent(), self.sys_data['root'], mo=True)
+            else:
+                continue
+
     def parent_sys(self):
-        locators = self.list_sys_locs()
+        """
+        Parent locators in system based on connection data
+        """
+        locators = self.sys_members()
         curve_grp = mc.group(em=True, name='{}_crv_grp'.format(self.sys_data['name']))
         mc.parent(curve_grp, self.sys_data['group'])
 

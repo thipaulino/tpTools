@@ -4,6 +4,7 @@ import maya.cmds as cmds
 import maya.OpenMaya as om
 import maya.api.OpenMaya as om2
 import maya.OpenMayaUI as OpenMayaUI
+import json
 import struct
 import glob
 import math
@@ -1150,6 +1151,24 @@ def get_next_index(item_list):
     return new_index
 
 
+def get_latest_index(item_list):
+    """
+    Given a list of strings with sequential indexes, check for the latest
+    :param item_list:
+    :return next int index:
+    """
+    index_list = []
+
+    for loc in item_list:
+        name_split = loc.split('_')
+        for item in name_split:
+            if item.isdigit():
+                index_list.append(int(item))
+
+    latest_index = max(index_list)
+    return latest_index
+
+
 class handle:
     pass
 
@@ -1268,7 +1287,6 @@ class RigTemplate:
         """
         Initializes system by searching for tag for tp_rigSystems_rigTemplate tag and getting environment
         if nonexistent, creates tag and environment
-        :return:
         """
         if not mc.objExists(self.tag_node):
             self.tag_node = mc.createNode('controller', name='tp_rigSystems_rigTemplate')
@@ -1286,7 +1304,6 @@ class RigTemplate:
         """
         Creates new group for all template systems with necessary attributes
         Connects to tag group for easy class access
-        :return:
         """
         self.environment_data = self.data_templates['environment_data']
         self.environment_data['group'] = mc.group(name='rig_template_grp', em=1)
@@ -1367,6 +1384,10 @@ class RigTemplate:
 
     # REBUILD SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def rebuild_template_from_data(self, template_data):
+        """
+        rebuilds the whole tamplate based on provided data
+        :param template_data:
+        """
         # rebuild environment
         self.init_template_sys()
         # rebuild all systems
@@ -1379,6 +1400,10 @@ class RigTemplate:
                 self.set_sys_parent(template_data['systems'][sys]['sys_parent'])
 
     def rebuild_template(self):
+        """
+        Queries template data, deletes template and rebuilds from data
+        :return:
+        """
         self.update_template_data()
         mc.delete(self.environment_data['group'])
         self.rebuild_template_from_data(self.environment_data)
@@ -1416,6 +1441,10 @@ class RigTemplate:
         self.update_sys_data()
 
     def rebuild_sys(self):
+        """
+        Queries system data, deletes single system and rebuilds from data
+        :return:
+        """
         self.update_sys_data()
         mc.delete(self.sys_data['group'])
         self.rebuild_sys_from_data(self.sys_data)
@@ -1644,6 +1673,9 @@ class RigTemplate:
         pass
 
     def parent_template(self):
+        """
+        Parent all systems in template, including systems themselves
+        """
         for sys in self.template_members():
             self.load_sys(sys)
             self.parent_sys()
@@ -1699,17 +1731,94 @@ class RigTemplate:
     #                        skinMethod=0,
     #                        normalizeWeights=1)
 
-    def export_template_data(self, system):
+    def export_template_data(self):
         """
         Export system data to json for future reconstruction
         """
-        pass
+        # update and stores template data
+        self.update_template_data()
+        data = self.environment_data
+
+        # queries project data path
+        project_path = mc.workspace(q=True, rootDirectory=True)
+        data_path = '{}data/'.format(project_path)
+        # queries jason files in path
+        files_in_path = glob.glob('{}*.json'.format(data_path))
+
+        # check versions and defines latest name
+        next_index = get_next_index(files_in_path) if files_in_path else 1
+        file_name = 'tp_rigSystems_rigTemplate_{:02d}_data.json'.format(next_index)
+        file_path = '{}{}'.format(data_path, file_name)
+
+        # exports json file
+        with open(file_path, 'w') as file_for_write:
+            json.dump(data, file_for_write, indent=4)
 
     def import_template_data(self):
-        pass
+        """
+        Imports latest json file from project data folder
+        :return environment data from file:
+        """
+        # queries project data path
+        project_path = mc.workspace(q=True, rootDirectory=True)
+        data_path = '{}data/'.format(project_path)
+
+        # queries jason files in path
+        files_in_path = glob.glob('{}*.json'.format(data_path))
+        latest = max(files_in_path, key=os.path.getctime)
+
+        with open(latest, 'r') as file_for_read:
+            self.environment_data = json.load(file_for_read)
 
     def reorder_indexes(self):
         """
         Reorder system indexes in selection order
         """
         pass
+
+
+# import tpUtils as tp
+# reload(tp)
+#
+# loc = tp.RigTemplate()
+# loc.export_template_data()
+# loc.import_template_data()
+# loc.rebuild_template_from_data(loc.environment_data)
+#
+# loc.set_loc_parent_sel_order()
+# loc.load_sys()
+# loc.sys_members()
+# loc.update_template_data()
+# loc.load_loc()
+# loc.update_loc()
+# loc.new_sys('head')
+#
+# neck_loc = ['d1', 'd2', 'd3', 'd4', 'd5', 'd6']
+# for item in neck_loc:
+#     loc.new_loc(item)
+#
+# loc.new_loc('t4')
+#
+# loc.rebuild_template()
+# loc.parent_template()
+# loc.rebuild_sys()
+# loc.parent_sys()
+# loc.rebuild_sys_from_data(loc.sys_data)
+# loc.list_systems()
+#
+# loc.sys_members()
+# loc.sys_members_data()
+# loc.update_sys_data()
+# loc.update_loc_data()
+# loc.update_template_data()
+# loc.loc_set_index(3)
+# loc.template_members()
+# loc.template_members_data()
+#
+# loc.set_root()
+# loc.loc
+# loc.loc_data
+#
+# loc.set_loc_sys()
+# loc.list_sys_locs()
+# loc.set_sys_parent()

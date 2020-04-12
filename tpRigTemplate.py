@@ -63,9 +63,12 @@ class RigTemplate:
 
     """
     Class development:
-        add mirror system
-            add system prefix
+        add mirror system - DONE
+            add system prefix - DONE
+            check for center cases
         add root joint on environment
+            check consequences to mirror
+            always loads root sys and root loc/joint/unit on init
         add cube shape to joint
         add annotation to modules
         add position by vertex average - sets
@@ -76,8 +79,12 @@ class RigTemplate:
         add export single template module
 
         add nested systems (necessary?)
+            neck sys would have: sterno++
         add vertex sets to store custom vertex data
         add edge sets to store custom edge data
+
+        use connect wordMatrix to offsetParentMatrix
+            instead of parent constraint
 
         reset index
             from parent data
@@ -91,7 +98,7 @@ class RigTemplate:
         duplicate sys with different name
 
         fixes
-            error when root not assigned - DONE
+            error when root not assigned
             error when no locator is not loaded
             set root happening on locator level
             connection lines double transforming
@@ -135,6 +142,7 @@ class RigTemplate:
             'sys_data': {
                 'name': '',
                 'group': '',
+                'prefix': '',
                 'position': {
                     't': [],
                     'r': [],
@@ -144,6 +152,7 @@ class RigTemplate:
 
             'loc_data': {
                 'parent': '',
+                'prefix': '',
                 'unique_name': '',
                 'name': '',
                 'index': '',
@@ -217,14 +226,18 @@ class RigTemplate:
 
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_data['group'])))
 
-    def new_sys(self, name):
+    def new_sys(self, name, prefix=''):
         """
         Creates new group for module/system with necessary data attributes and connections
         :param name:
+        :param prefix:
         """
+
+        prefix_edit = '{}_'.format(prefix) if prefix else ''
         self.sys_data = self.data_templates['sys_data']
+        self.sys_data['prefix'] = prefix
         self.sys_data['name'] = name if name else 'tempName'
-        self.sys_data['group'] = mc.group(name='{}_sys_grp'.format(name), empty=True)
+        self.sys_data['group'] = mc.group(name='{}{}_sys_grp'.format(prefix_edit, name), empty=True)
         mc.parent(self.sys_data['group'], self.environment_data['group'])
         mc.select(cl=True)
 
@@ -242,9 +255,10 @@ class RigTemplate:
 
         self.commit_data(self.sys_data['group'], self.sys_data)
 
-    def new_loc(self, unique_name='', loc_index='', system='', root=False):
+    def new_loc(self, unique_name='', prefix='', loc_index='', system='', root=False):
         """
         Creates new template locator with metadata attribute
+        :param prefix:
         :param unique_name:
         :param loc_index:
         :param system:
@@ -254,10 +268,12 @@ class RigTemplate:
             self.load_sys(system)
         if not loc_index:
             loc_list = self.sys_members()  # place outside loc creation - encapsulate
-            loc_index = 1 if loc_list is None else tpu.get_next_index(loc_list)
+            loc_index = 1 if not loc_list else tpu.get_next_index(loc_list)
 
+        prefix = self.sys_data['prefix'] if self.sys_data['prefix'] else prefix
+        prefix_edit = '{}_'.format(prefix) if prefix else ''
         loc_name = '{}_'.format(unique_name) if unique_name else ''
-        name = '{}{}_{:02d}_loc'.format(loc_name, self.sys_data['name'], loc_index)
+        name = '{}{}{}_{:02d}_loc'.format(prefix_edit, loc_name, self.sys_data['name'], loc_index)
 
         mc.select(cl=1)
         self.loc = mc.joint(name=name)
@@ -272,6 +288,7 @@ class RigTemplate:
 
         self.loc_data = self.data_templates['loc_data']
         self.loc_data.update({
+            'prefix': prefix,
             'unique_name': unique_name,
             'system_grp': self.sys_data['group'],
             'system_plug': mc.listConnections('{}.metadata'.format(self.loc), d=1, s=0, p=1)[0].split('.')[1],
@@ -316,17 +333,17 @@ class RigTemplate:
         :param sys_data:
         :return:
         """
-        self.new_sys(sys_data['name'])
+        self.new_sys(sys_data['name'], sys_data['prefix'])
 
         # set group position to match root joint
-        mc.xform(self.sys_data['group'],
-                 t=sys_data['locators'][sys_data['root']]['position']['t'],
-                 ro=sys_data['locators'][sys_data['root']]['position']['r'],
-                 ws=True)
+        # mc.xform(self.sys_data['group'],
+        #          t=sys_data['locators'][sys_data['root']]['position']['t'],
+        #          ro=sys_data['locators'][sys_data['root']]['position']['r'],
+        #          ws=True)
 
         for loc in sys_data['locators']:
             # rebuild locator
-            self.new_loc(sys_data['locators'][loc]['unique_name'],
+            self.new_loc(sys_data['locators'][loc]['unique_name'], prefix=sys_data['locators'][loc]['prefix'],
                          loc_index=sys_data['locators'][loc]['index'])
             self.loc_data = sys_data['locators'][loc]
             self.commit_data(self.loc, self.loc_data)
@@ -595,15 +612,70 @@ class RigTemplate:
     def sys_distribute_loc_on_curve(self):
         pass
 
-    def duplicate_system(self):
+    def duplicate_system(self, name):
         pass
 
-    def duplicate_loc(self):
+    def duplicate_loc(self, name):
         pass
 
-    def mirror_system(self, x=True, y=False, z=False):
+    def mirror_system(self, axis=(1, 0, 0), new=True):
+        side_relation = {'l': 'r',
+                         'r': 'l'}
+        t_axis_flip = [-1 if coord == 1 else 1 for coord in axis]  # (-1, 1, 1) for x
+        r_axis_flip = [-1 if coord == 0 else 1 for coord in axis]  # (1, -1, -1) for x
 
-        pass
+        self.update_sys_data()
+        sys_data = self.sys_data
+        data = self.sys_members_data()
+        flip_prefix = side_relation[sys_data['prefix']]
+
+        sys_data['prefix'] = flip_prefix
+
+        for member in data:
+            # rebuilding flip parent name
+            parent = data[member]['parent']
+            if parent:
+                identity = sys_data['locators'][parent]['unique_name']
+                index = sys_data['locators'][parent]['index']
+                flip_parent = '{}_{}_{}_{:02d}_loc'.format(flip_prefix, identity, sys_data['name'], index)
+                data[member]['parent'] = flip_parent
+
+            # flipping coordinates
+            t_coord = data[member]['position']['t']
+            r_coord = data[member]['position']['r']
+            flip_t = [flip * coord for flip, coord in zip(t_axis_flip, t_coord)]
+            flip_r = [flip * coord for flip, coord in zip(r_axis_flip, r_coord)]
+            data[member]['position']['t'] = flip_t
+            data[member]['position']['r'] = flip_r
+
+        # rebuilding flip root name
+        root = sys_data['root']
+        if root:
+            identity = sys_data['locators'][root]['unique_name']
+            index = sys_data['locators'][root]['index']
+            flip_root = '{}_{}_{}_{:02d}_loc'.format(flip_prefix, identity, sys_data['name'], index)
+            sys_data['root'] = flip_root
+
+        sys_data['locators'] = data
+        self.rebuild_sys_from_data(sys_data)
+
+    def mirror_loc(self, axis=(1, 0, 0), new=True):
+        side_relation = {'l': 'r',
+                         'r': 'l'}
+        axis_flip = [-1 * coord if coord == 1 else 1 for coord in axis]
+
+        self.update_loc_data()
+        side = self.loc_data['prefix']
+        name = self.loc_data['unique_name']
+        position = self.loc_data['position']['t']
+        mirror = [flip * coord for flip, coord in zip(axis_flip, position)]
+
+        self.new_loc(name, prefix=side_relation[side])
+        self.loc_set_position(mirror)
+        self.update_template_data()
+
+    def loc_set_position(self, position):
+        mc.xform(self.loc, t=position, ws=1)
 
     def parent_template(self):
         """
@@ -623,7 +695,8 @@ class RigTemplate:
         Parent locators in system based on connection data
         """
         locators = self.sys_members()
-        curve_grp = mc.group(em=True, name='{}_crv_grp'.format(self.sys_data['name']))
+        prefix = '{}_'.format(self.sys_data['prefix']) if self.sys_data['prefix'] else ''
+        curve_grp = mc.group(em=True, name='{}{}_crv_grp'.format(prefix, self.sys_data['name']))
         mc.parent(curve_grp, self.sys_data['group'])
 
         for loc in locators:

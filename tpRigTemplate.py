@@ -63,12 +63,19 @@ class RigTemplate:
 
     """
     Class development:
-        add mirror system - DONE
-            add system prefix - DONE
-            check for center cases
-        add root joint on environment
-            check consequences to mirror
-            always loads root sys and root loc/joint/unit on init
+        add vertex sets to store custom vertex data
+        add edge sets to store custom edge data
+        duplicate sys with different name
+        add name construct method
+            standard name construction across class
+        add mirror name method
+            if center keeps center
+        add system parent to mirror sys
+        create rigTemplate ui?
+        switch names
+            environment ?
+            system - module
+            locator - handle / unit / joint / proxy
         add cube shape to joint
         add annotation to modules
         add position by vertex average - sets
@@ -80,8 +87,6 @@ class RigTemplate:
 
         add nested systems (necessary?)
             neck sys would have: sterno++
-        add vertex sets to store custom vertex data
-        add edge sets to store custom edge data
 
         use connect wordMatrix to offsetParentMatrix
             instead of parent constraint
@@ -95,14 +100,19 @@ class RigTemplate:
             module
             template
 
-        duplicate sys with different name
-
         fixes
             error when root not assigned
-            error when no locator is not loaded
             set root happening on locator level
-            connection lines double transforming
+            error when no locator is not loaded - DONE
+            connection lines double transforming - DONE
 
+        add mirror system - DONE
+            add system prefix - DONE
+            check for center cases
+        add root joint on environment - DONE
+            check consequences to mirror
+            always loads root sys and root loc/joint/unit on init - DONE
+            handle root redundancy - stored data vs root on init - DONE
         export/import system data - DONE
         export/import template data - DONE
         parent systems - DONE
@@ -120,18 +130,20 @@ class RigTemplate:
 
     def __init__(self):
         self.tag_node = 'tp_rigSystems_rigTemplate'
+        self.root_sys = 'root_sys_grp'
         self.environment_grp = ''
         self.sys = ''
         self.loc = ''
 
+        self.tag_data = {}
         self.environment_data = {}
         self.sys_data = {}
         self.loc_data = {}
-        self.tag_data = {}
-        self.temp_sys_data = {}
-        self.loaded_loc_data = {}
 
-        self.current_data = {}
+        # cache data - temporary
+        self.cache_template_data = {}
+        self.cache_sys_data = {}
+        self.cache_loc_data = {}
 
         self.data_templates = {
             'environment_data': {
@@ -198,15 +210,7 @@ class RigTemplate:
         self.environment_grp = mc.listConnections('{}.environment_data'.format(self.tag_node), s=1, d=0)[0]
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_grp)))
 
-        # load system
-        system = self.template_members()
-        if system:
-            self.load_sys(system[0])
-
-            # load locator
-            loc = self.sys_members()
-            if loc:
-                self.load_loc(loc[0])
+        self.load_loc(self.sys_members(self.root_sys)[0])
 
     def new_environment(self, name=''):
         """
@@ -225,6 +229,9 @@ class RigTemplate:
         self.commit_data(self.environment_data['group'], self.environment_data)
 
         self.environment_data = eval(mc.getAttr('{}.metadata'.format(self.environment_data['group'])))
+
+        self.new_sys('root')
+        self.new_loc('root')
 
     def new_sys(self, name, prefix=''):
         """
@@ -309,6 +316,9 @@ class RigTemplate:
         """
         # rebuild environment
         self.init_template_sys()
+        # deletes existing root module
+        mc.delete(self.root_sys)
+
         # rebuild all systems
         for sys in template_data['systems']:
             self.rebuild_sys_from_data(template_data['systems'][sys])
@@ -317,6 +327,8 @@ class RigTemplate:
             self.load_sys(sys)
             if template_data['systems'][sys]['sys_parent']:
                 self.set_sys_parent(template_data['systems'][sys]['sys_parent'])
+
+        self.update_template_data()
 
     def rebuild_template(self):
         """
@@ -781,3 +793,8 @@ class RigTemplate:
         Reorder system indexes in selection order
         """
         pass
+
+    def clear_cache(self):
+        self.cache_template_data = {}
+        self.cache_sys_data = {}
+        self.cache_loc_data = {}

@@ -1,7 +1,6 @@
 from __future__ import division
 import tpUtils as tpu
 import maya.cmds as mc
-import maya.cmds as cmds
 import maya.OpenMaya as om
 import maya.api.OpenMaya as om2
 import maya.OpenMayaUI as OpenMayaUI
@@ -63,7 +62,8 @@ class RigTemplate:
 
     """
     Class development:
-        add vertex sets to store custom vertex data
+        add template joint scale
+        add vertex sets to store custom vertex data - DONE
         add edge sets to store custom edge data
         duplicate sys with different name
         add name construct method
@@ -76,6 +76,7 @@ class RigTemplate:
             environment ?
             system - module
             locator - handle / unit / joint / proxy
+
         add cube shape to joint
         add annotation to modules
         add position by vertex average - sets
@@ -129,12 +130,14 @@ class RigTemplate:
     """
 
     def __init__(self):
+        # loaded parts / entities
         self.tag_node = 'tp_rigSystems_rigTemplate'
         self.root_sys = 'root_sys_grp'
         self.environment_grp = ''
         self.sys = ''
         self.loc = ''
 
+        # class parts data holders
         self.tag_data = {}
         self.environment_data = {}
         self.sys_data = {}
@@ -144,6 +147,18 @@ class RigTemplate:
         self.cache_template_data = {}
         self.cache_sys_data = {}
         self.cache_loc_data = {}
+
+        # side standards
+        self.prefix_standards = {
+            'left': 'l',
+            'right': 'r',
+            'center': 'ct'}
+
+        self.standards = {
+            'prefix': '',
+            'parts': {'handle': 'loc',
+                      'module': 'sys',
+                      'environment': 'template'}}
 
         self.data_templates = {
             'environment_data': {
@@ -160,7 +175,8 @@ class RigTemplate:
                     'r': [],
                     's': []},
                 'locators': {},
-                'root': ''},
+                'root': '',
+                'sys_parent': ''},
 
             'loc_data': {
                 'parent': '',
@@ -172,9 +188,10 @@ class RigTemplate:
                     't': [],
                     'r': [],
                     's': []},
-                'sets': {
+                'custom_sets': {
                     'vertex': {},
-                    'edge': {}},
+                    'edge': {},
+                    'vertex_avg': []},
                 'system_grp': '',
                 'system_plug': '',  # Used to retrieve loc name
                 'ref_vertex': [],
@@ -323,6 +340,8 @@ class RigTemplate:
         for sys in template_data['systems']:
             self.rebuild_sys_from_data(template_data['systems'][sys])
 
+        # rebuild system parent connection
+        # obs. has to be in template so that all systems are created prior to connect
         for sys in template_data['systems']:
             self.load_sys(sys)
             if template_data['systems'][sys]['sys_parent']:
@@ -382,6 +401,12 @@ class RigTemplate:
 
     def reposition_system(self):
         root = mc.listConnections('{}.root'.format(self.sys_data['group']), s=True, d=False)[0]
+        pass
+
+    def name_construct(self):
+        """
+        prefix _ id _ sys _ index _ type
+        """
         pass
 
     # LOAD SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -469,6 +494,9 @@ class RigTemplate:
     # SET SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
     def commit_data(self, group, data):
         mc.setAttr('{}.metadata'.format(group), data, type='string')
+
+    def commit_loc_data(self):
+        mc.setAttr('{}.metadata'.format(self.loc), self.loc_data, type='string')
 
     def set_root(self, loc_choice=''):
         """
@@ -611,6 +639,35 @@ class RigTemplate:
         pass
 
     # ACTION SECTION ::::::::::::::::::::::::::::::::::::::::::::::::::::
+    def snap_to_vtx_avg(self, vtx_input=''):
+        """
+        Snaps current locator to selected vertex list average position
+        :param vtx_input:
+        """
+        vtx_list = vtx_input if vtx_input else mc.filterExpand(mc.ls(sl=1), sm=31)
+        axis_x = axis_y = axis_z = 0
+
+        for vtx in vtx_list:
+            axis_x += mc.xform(vtx, q=1, t=1, ws=1)[0]
+            axis_y += mc.xform(vtx, q=1, t=1, ws=1)[1]
+            axis_z += mc.xform(vtx, q=1, t=1, ws=1)[2]
+
+        x_avg = axis_x / len(vtx_list)
+        y_avg = axis_y / len(vtx_list)
+        z_avg = axis_z / len(vtx_list)
+
+        mc.xform(self.loc, t=(x_avg, y_avg, z_avg), ws=1)
+
+        self.loc_data['custom_sets']['vertex_avg'] = vtx_list
+        self.commit_loc_data()
+        self.update_template_data()
+
+    def add_to_vtx_set(self, key=''):
+        """
+        Add selection to custom set - vertex
+        """
+        pass
+
     def sys_distribute_members(self):
         amount = len(self.sys_members())
         step = 100/(amount - 1)
@@ -639,8 +696,8 @@ class RigTemplate:
         self.update_sys_data()
         sys_data = self.sys_data
         data = self.sys_members_data()
-        flip_prefix = side_relation[sys_data['prefix']]
 
+        flip_prefix = '' if not sys_data['prefix'] else side_relation[sys_data['prefix']]
         sys_data['prefix'] = flip_prefix
 
         for member in data:
@@ -668,10 +725,25 @@ class RigTemplate:
             flip_root = '{}_{}_{}_{:02d}_loc'.format(flip_prefix, identity, sys_data['name'], index)
             sys_data['root'] = flip_root
 
+        # rebuild flip sys_parent
+        # sys_parent = sys_data['sys_parent']
+        # if sys_parent:
+        #     self.load_loc(sys_parent)
+        #     identity = sys_data['locators'][root]['unique_name']
+        #     index = sys_data['locators'][root]['index']
+        #     flip_root = '{}_{}_{}_{:02d}_loc'.format(flip_prefix, identity, sys_data['name'], index)
+        #     sys_data['root'] = flip_root
+
         sys_data['locators'] = data
         self.rebuild_sys_from_data(sys_data)
 
-    def mirror_loc(self, axis=(1, 0, 0), new=True):
+    def mirror_loc(self, axis=(1, 0, 0)):
+        """
+        Duplicate data, mirrors coordinates, name, connections,
+        and creates new locator on calculated position
+        :param axis:
+        :return:
+        """
         side_relation = {'l': 'r',
                          'r': 'l'}
         axis_flip = [-1 * coord if coord == 1 else 1 for coord in axis]
@@ -698,7 +770,7 @@ class RigTemplate:
             self.parent_sys()
 
             if self.sys_parent():
-                mc.parentConstraint(self.sys_parent(), self.sys_data['root'], mo=True)
+                mc.parentConstraint(self.sys_parent(), self.sys_root(), mo=True)
             else:
                 continue
 
@@ -798,3 +870,7 @@ class RigTemplate:
         self.cache_template_data = {}
         self.cache_sys_data = {}
         self.cache_loc_data = {}
+
+    def sys_parent_hierarchy(self):
+
+        pass

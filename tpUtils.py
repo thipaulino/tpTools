@@ -4,11 +4,13 @@ import maya.cmds as cmds
 import maya.OpenMaya as om
 import maya.api.OpenMaya as om2
 import maya.OpenMayaUI as OpenMayaUI
+import importlib
 import json
 import struct
 import glob
 import math
 import os
+
 
 # -------------------------------------------------------------------------------
 # Name:        tp_utilityTools v4
@@ -40,9 +42,9 @@ def sys_from_edge_loop(egde, surface, name=""):
     # Duplicate -> Rebuild to low res
 
     # Creat locators on each CV
-    locator_list = locatorOnCVs(anchor_curve)
+    locator_list = locator_on_cv_set(anchor_curve)
     # Connect locators to CVs
-    connectLocatorToCrv(locator_list, anchor_curve)
+    connect_locator_to_crv(locator_list, anchor_curve)
 
     # Wire high res to low res curve
     # Create joints on each low res CV
@@ -59,15 +61,15 @@ def follicle_on_closest_point(surface, locator_list, name=""):
 
     surface_shape = cmds.listRelatives(surface, type="shape")[0]
     follicle_dict = {}
-    closesPoint_node_list = []
-    setRange_node_list = []
+    closest_point_node_list = []
+    setrange_node_list = []
 
     for n, loc in enumerate(locator_list):
         # Create Point on Curve Info node
         closesPoint_node = cmds.createNode("closestPointOnSurface", n="{}_{:02d}_closestPointOnSrf")
-        closesPoint_node_list.append(closesPoint_node)
+        closest_point_node_list.append(closesPoint_node)
         # Create follicle on surface
-        follice_data = createFollicle(inputSurface=[surface_shape], hide=0, name="{}_{:02d}_Flc".format(name, n))
+        follice_data = create_follicle(input_surface=[surface_shape], hide=0, name="{}_{:02d}_Flc".format(name, n))
         follicle_dict.update({follice_data[0]:follice_data[1]})
 
         # Connect surface to pci
@@ -77,7 +79,7 @@ def follicle_on_closest_point(surface, locator_list, name=""):
 
         # Create set range for parameterV
         setRage_node = cmds.shadingNode("setRange", asUtility=1, n="{}_{:02d}_setRange".format(name, n))
-        setRange_node_list.append(setRage_node)
+        setrange_node_list.append(setRage_node)
         # Get surface max U and V parameters
         cmds.connectAttr(surface_shape + ".maxValueV", setRage_node + ".oldMaxX")
         cmds.connectAttr(surface_shape + ".maxValueU", setRage_node + ".oldMaxY")
@@ -89,10 +91,10 @@ def follicle_on_closest_point(surface, locator_list, name=""):
         cmds.connectAttr(setRage_node + ".outValueX", follice_data[1] + ".parameterV")
         cmds.connectAttr(setRage_node + ".outValueY", follice_data[1] + ".parameterU")
 
-    return follicle_dict, closesPoint_node_list, setRange_node_list
+    return follicle_dict, closest_point_node_list, setrange_node_list
 
 
-def connectLocatorToCrv(loc_list, crv):
+def connect_locator_to_crv(loc_list, crv):
 
     for loc in loc_list:
         loc_pos = cmds.xform(loc, q=1, ws=1, t=1)
@@ -104,7 +106,7 @@ def connectLocatorToCrv(loc_list, crv):
         cmds.connectAttr(pciNode + ".position" , loc + ".t")
 
 
-def locatorOnCVs(path_crv):
+def locator_on_cv_set(path_crv):
     """
     Locator on CV's - Select curve, run script
     :param path_crv:
@@ -124,17 +126,21 @@ def locatorOnCVs(path_crv):
     return locator_list
 
 
-def follicle_2d(name="", rows=3, colums=3, widthPercentage=1, hightPercentage=1):
+def follicle_2d(name="", rows=3, columns=3, width_percentage=1, height_percentage=1):
     """
     Distribute follicles in a 2D array of a polygon surface
     Distribute follicles on surface + joints and controls
+    :param name:
+    :param rows:
+    :param columns:
+    :param width_percentage:
+    :param height_percentage:
+    :return:
     """
 
     # If columns/rows equals 1, position in center
-    if colums == 1.0: surface_uStep = 0.5
-    else: surface_uStep = (100 / (colums-1) / 100) * widthPercentage
-    if rows == 1.0: surface_vStep = 0.5
-    else: surface_vStep = (100 / (rows-1) / 100) * hightPercentage
+    surface_u_step = 0.5 if columns == 1.0 else (100 / (columns - 1) / 100) * width_percentage
+    surface_v_step = 0.5 if rows == 1.0 else (100 / (rows-1) / 100) * height_percentage
 
     surface = cmds.ls(sl=1)[0]
     surface_shape = cmds.listRelatives(surface, type="shape")
@@ -142,14 +148,12 @@ def follicle_2d(name="", rows=3, colums=3, widthPercentage=1, hightPercentage=1)
     follicle_list = []
     joint_list = []
 
-    for i in range(int(colums)):
+    for i in range(int(columns)):
         for y in range(int(rows)):
-            if colums == 1.0: uParameter = surface_uStep
-            else: uParameter = surface_uStep * i
-            if rows == 1.0: vParameter = surface_vStep
-            else: vParameter = surface_vStep * y
+            u_parameter = surface_u_step if columns == 1.0 else surface_u_step * i
+            v_parameter = surface_v_step if rows == 1.0 else surface_v_step * y
 
-            follicle_data = createFollicle(inputSurface=surface_shape, uVal=uParameter, vVal=vParameter,
+            follicle_data = create_follicle(input_surface=surface_shape, uVal=u_parameter, vVal=v_parameter,
                                             name="{}_Flc_C{}_R{}".format(name, i, y), hide=0)
             joint = cmds.joint(n="{}_Jnt_C{}_R{}".format(name, i, y))
 
@@ -165,46 +169,50 @@ def follicle_2d(name="", rows=3, colums=3, widthPercentage=1, hightPercentage=1)
     joint_group = cmds.group(joint_list, n=name + "_Jnt_Grp")
     follicle_group = cmds.group(follicle_list, n=name + "_Flc_Grp")
 
+    return {'groups': [joint_group, follicle_group],
+            'joints': joint_list,
+            'follicles': follicle_list}
 
-def createFollicle(inputSurface=[], scaleGrp='', uVal=0.5, vVal=0.5, hide=1, name='follicle'):
+
+def create_follicle(input_surface=[], scaleGrp='', uVal=0.5, vVal=0.5, hide=1, name='follicle'):
     # Create a follicle
-    follicleShape = cmds.createNode('follicle')
+    follicle_shape = cmds.createNode('follicle')
     # Get the transform of the follicle
-    follicleTrans = cmds.listRelatives(follicleShape, parent=True)[0]
+    follicle = cmds.listRelatives(follicle_shape, parent=True)[0]
     # Rename the follicle
-    follicleTrans = cmds.rename(follicleTrans, name)
-    follicleShape = cmds.rename(cmds.listRelatives(follicleTrans, c=True)[0], (name + 'Shape'))
+    follicle = cmds.rename(follicle, name)
+    follicle_shape = cmds.rename(cmds.listRelatives(follicle, c=True)[0], (name + 'Shape'))
 
     # If the inputSurface is of type 'nurbsSurface', connect the surface to the follicle
-    if cmds.objectType(inputSurface[0]) == 'nurbsSurface':
-        cmds.connectAttr((inputSurface[0] + '.local'), (follicleShape + '.inputSurface'))
+    if cmds.objectType(input_surface[0]) == 'nurbsSurface':
+        cmds.connectAttr((input_surface[0] + '.local'), (follicle_shape + '.inputSurface'))
     # If the inputSurface is of type 'mesh', connect the surface to the follicle
-    if cmds.objectType(inputSurface[0]) == 'mesh':
-        cmds.connectAttr((inputSurface[0] + '.outMesh'), (follicleShape + '.inputMesh'))
+    if cmds.objectType(input_surface[0]) == 'mesh':
+        cmds.connectAttr((input_surface[0] + '.outMesh'), (follicle_shape + '.inputMesh'))
 
     # Connect the worldMatrix of the surface into the follicleShape
-    cmds.connectAttr((inputSurface[0] + '.worldMatrix[0]'), (follicleShape + '.inputWorldMatrix'))
+    cmds.connectAttr((input_surface[0] + '.worldMatrix[0]'), (follicle_shape + '.inputWorldMatrix'))
     # Connect the follicleShape to it's transform
-    cmds.connectAttr((follicleShape + '.outRotate'), (follicleTrans + '.rotate'))
-    cmds.connectAttr((follicleShape + '.outTranslate'), (follicleTrans + '.translate'))
+    cmds.connectAttr((follicle_shape + '.outRotate'), (follicle + '.rotate'))
+    cmds.connectAttr((follicle_shape + '.outTranslate'), (follicle + '.translate'))
     # Set the uValue and vValue for the current follicle
-    cmds.setAttr((follicleShape + '.parameterU'), uVal)
-    cmds.setAttr((follicleShape + '.parameterV'), vVal)
+    cmds.setAttr((follicle_shape + '.parameterU'), uVal)
+    cmds.setAttr((follicle_shape + '.parameterV'), vVal)
     # Lock the translate/rotate of the follicle
-    cmds.setAttr((follicleTrans + '.translate'), lock=True)
-    cmds.setAttr((follicleTrans + '.rotate'), lock=True)
+    cmds.setAttr((follicle + '.translate'), lock=True)
+    cmds.setAttr((follicle + '.rotate'), lock=True)
 
     # If it was set to be hidden, hide the follicle
     if hide:
-        cmds.setAttr((follicleShape + '.visibility'), 0)
+        cmds.setAttr((follicle_shape + '.visibility'), 0)
     # If a scale-group was defined and exists
     if scaleGrp and cmds.objExists(scaleGrp):
         # Connect the scale-group to the follicle
-        cmds.connectAttr((scaleGrp + '.scale'), (follicleTrans + '.scale'))
+        cmds.connectAttr((scaleGrp + '.scale'), (follicle + '.scale'))
         # Lock the scale of the follicle
-        cmds.setAttr((follicleTrans + '.scale'), lock=True)
-    # Return the follicle and it's shape
-    return follicleTrans, follicleShape
+        cmds.setAttr((follicle + '.scale'), lock=True)
+
+    return follicle, follicle_shape
 
 
 def find_center():
@@ -260,7 +268,7 @@ def jointChainMultiCrv(addIk=0, bind=0, loft=0, cluster=0, name=""):
 
     # Joint chain and ikSpline section
     for n, i in enumerate(curves):
-        crv_joint_list = jointsOnCVs(path_crv=i)
+        crv_joint_list = joints_on_cv_set(path_crv=i)
         parent_in_order(sel=crv_joint_list)
         joint_list.append(crv_joint_list[0])
         cmds.select(cl=1)
@@ -345,7 +353,7 @@ def joint_on_selection_list():
     return joint_list
 
 
-def jointsOnCVs(path_crv):
+def joints_on_cv_set(path_crv):
     """
     Joints on CV's - Select curve, run script
     :param path_crv:
@@ -391,12 +399,12 @@ def parent_in_order(sel):
 
 # CONTROL SECTION __________________________________________________________________
 
-def build_ctrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, offset=0):
+def build_ctrl(ctrl_type="circle", name="", suffix="_ctrl", scale=1, spaced=1, offset=0):
     """
     ctrl_type - Cube, Sphere, Circle (add - square, pointer, arrow, spherev2)
     :param ctrl_type:
     :param name:
-    :param sufix:
+    :param suffix:
     :param scale:
     :param spaced:
     :param offset:
@@ -406,7 +414,7 @@ def build_ctrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, of
     c1 = ''
 
     if ctrl_type == "cube":
-        c1 = cmds.curve(n=name + sufix,
+        c1 = cmds.curve(n=name + suffix,
                         p=[(-1.0, 1.0, 1.0), (-1.0, 1.0, -1.0), (1.0, 1.0, -1.0),
                            (1.0, 1.0, 1.0), (-1.0, 1.0, 1.0), (-1.0, -1.0, 1.0),
                            (1.0, -1.0, 1.0), (1.0, -1.0, -1.0), (-1.0, -1.0, -1.0),
@@ -417,7 +425,7 @@ def build_ctrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, of
         pack.append(c1)
 
     elif ctrl_type == "sphere":
-        c1 = cmds.circle(n=name + sufix, nr=(1, 0, 0), r=scale, ch=0)[0]
+        c1 = cmds.circle(n=name + suffix, nr=(1, 0, 0), r=scale, ch=0)[0]
         c2 = cmds.circle(nr=(0, 1, 0), r=scale, ch=0)[0]
         c3 = cmds.circle(nr=(0, 0, 1), r=scale, ch=0)[0]
 
@@ -426,7 +434,7 @@ def build_ctrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, of
         pack.append(c1)
 
     elif ctrl_type == "circle":
-        c1 = cmds.circle(n=name + sufix, nr=(1, 0, 0), r=scale, ch=0)[0]
+        c1 = cmds.circle(n=name + suffix, nr=(1, 0, 0), r=scale, ch=0)[0]
         pack.append(c1)
 
     shapes = cmds.listRelatives(c1, f=True, s=True)
@@ -434,12 +442,12 @@ def build_ctrl(ctrl_type="circle", name="", sufix="_Ctrl", scale=1, spaced=1, of
         cmds.rename(shape, "{}Shape{:02d}".format(c1, y+1))
 
     if spaced == 1:
-        ctrl_grp = cmds.group(c1, n=name + sufix + "_Grp")
+        ctrl_grp = cmds.group(c1, n=name + suffix + "_Grp")
         pack.append(ctrl_grp)
 
     # Creates offset group for static control
     if offset == 1:
-        offset_grp = cmds.group(c1, n=name + sufix + "_Offset_Grp")
+        offset_grp = cmds.group(c1, n=name + suffix + "_Offset_Grp")
         mpDivide_node = cmds.shadingNode('multiplyDivide', au=1)
 
         cmds.connectAttr(c1 + '.translate', mpDivide_node + '.input1')
@@ -536,19 +544,19 @@ def place_on_clusters(name="", type="circle", scale=1, color=(1, 1, 1), parent_c
     """
     sel = cmds.ls(sl=1)
 
-    for n, i in enumerate(sel):
-        cls_shape = cmds.listRelatives(i, type="shape")
+    for n, cluster in enumerate(sel):
+        cls_shape = cmds.listRelatives(cluster, type="shape")
         cls_tr = cmds.getAttr(cls_shape[0] + ".origin")[0]
 
-        new_ctrl = build_ctrl(ctrl_type=type, name=i, sufix="_Ctrl".format(n),
+        new_ctrl = build_ctrl(ctrl_type=type, name=cluster, suffix="_ctrl".format(n),
                               scale=scale, spaced=1, offset=0)
-        set_ctrl_color(new_ctrl[0], color = color)
+        set_ctrl_color(new_ctrl[0], color=color)
         cmds.xform(new_ctrl[1], t=cls_tr)
         if parent_constraint == 1:
-            cmds.parentConstraint(new_ctrl[0], i, mo=1)
+            cmds.parentConstraint(new_ctrl[0], cluster, mo=1)
 
 
-def place_on_joints(name, scale=1, color=(1,1,1), parent_constraint=0):
+def place_on_joints(name, scale=1, color=(1, 1, 1), parent_constraint=0):
     """
     Control on each Joint selection
     :param name:
@@ -562,7 +570,7 @@ def place_on_joints(name, scale=1, color=(1,1,1), parent_constraint=0):
     for n, i in enumerate(sel):
         position = cmds.xform(i, q=1, t=1, ws=1)
         rotation = cmds.joint(i, q=1, o=1)
-        new_ctrl = build_ctrl(ctrl_type="circle", name=name, sufix="_Ctrl{}".format(n),
+        new_ctrl = build_ctrl(ctrl_type="circle", name=name, suffix="_Ctrl{}".format(n),
                               scale=scale, spaced=1, offset=0)
         set_ctrl_color(new_ctrl[0], color = color)
         cmds.xform(new_ctrl[1], t=position, ro=rotation)
@@ -586,7 +594,7 @@ def parent_fk_order():
         if y+1 >= len(groups-1): break
 
 
-def multi_set_color(color=(1,1,1)):
+def multi_set_color(color=(1, 1, 1)):
     """
     Set Control Color in Multiple Controls
     :param color:
@@ -625,7 +633,7 @@ def placeCtrlsOnCrv(name, amount):
     for i in range(int(amount)):
         parameter = crvStep * i
         position = get_point_on_curve(crv, parameter, 1)
-        createCtrl(name + str(i), position[0], position[1])
+        build_ctrl(name + str(i), position[0], position[1])
 
 
 # GENERAL SECTION __________________________________________________________________
@@ -772,8 +780,8 @@ def resizeImage(sourceImage, outputImage, width, height):
     image = om.MImage()
     image.readFromFile(sourceImage)
 
-    image.resize( width, height )
-    image.writeToFile( outputImage, 'png')
+    image.resize(width, height)
+    image.writeToFile(outputImage, 'png')
 
 
 class UnknownImageFormat(Exception):
@@ -1174,3 +1182,135 @@ def get_latest_index(item_list):
     latest_index = max(index_list)
     return latest_index
 
+
+# def orbi_oris_expand_surfaces():
+#     surface = mc.ls(sl=1)[0]
+#     srf_list = []
+#     # output =
+#     mod_list = {'boccinator_srf',
+#                 'depressorAnguli_srf',
+#                 'risorius_srf',
+#                 'zMajor_srf',
+#                 'zMinor_srf',
+#                 'depressorLabii_srf',
+#                 'mentalis_srf',
+#                 'levatorLabiiSup_srf',
+#                 'levatorLabiiSAN_srf',
+#                 'levatorAnguli_srf'}
+#
+#     for srf in mod_list:
+#         mod_srf = mc.duplicate(surface, n=srf)
+#         srf_list.append()
+
+
+def curves_from_surface(surface, u_or_v="v", crv_amount=10, name=""):
+    """
+    This function extracts curves from a NURBS Surface
+    :param surface:
+    :param u_or_v:
+    :param crv_amount:
+    :param name:
+    :return: curve list
+    """
+
+    # cet max U V values
+    max_value_u = cmds.getAttr(surface + ".maxValueU")
+    max_value_v = cmds.getAttr(surface + ".maxValueV")
+
+    # calculate space between each curve
+    u_step = max_value_u / (crv_amount - 1)
+    v_step = max_value_v / (crv_amount - 1)
+
+    # Select U or V value based on user input
+    step = u_step if u_or_v == "u" else v_step
+    crv_list = []
+
+    for n in range(crv_amount):
+        # calculate current crv position
+        crv_parameter = n * step
+        crv = cmds.duplicateCurve("{}.{}[{}]".format(surface, u_or_v, crv_parameter),
+                                  local=True, ch=0, n="{}_{:02d}_Crv".format(name, n))
+        # un-parent from surface
+        cmds.parent(crv, w=1)
+        # Add curve list
+        crv_list.append(crv[0])
+
+    return crv_list
+
+
+# def load_py_modules(mod_list):
+#     for module in mod_list:
+#         importlib.import_module()
+#     pass
+
+
+def surface_from_alternate_point(sel_list, name=''):
+    """
+    Creates surface from alternate point selection
+    :param sel_list:
+    :param name:
+    :return:
+    """
+    # create interpolated selection list
+    start_list = sel_list[::2]
+    end_list = sel_list[1::2]
+    curve_list = []
+
+    for n, (start, end) in enumerate(zip(start_list, end_list)):
+        # create curve from a to b
+        curve = curve_from_a_to_b(start, end, name='{}_{:02d}'.format(name, n))
+        # rebuild curve to new cv count
+        mc.rebuildCurve(curve, ch=0, rpo=1, rt=0, end=1, kr=0, kcp=0, kep=1, kt=0, s=3, d=3, tol=0.01)
+        curve_list.append(curve)
+
+    # loft curves to create surface
+    surface = mc.loft(curve_list, name='{}_srf'.format(name),
+                      ch=0, u=1, c=0, ar=1, d=3, ss=1, rn=0, po=1, rsn=True)[0]
+
+    # group created nodes
+    curve_grp = mc.group(curve_list, name='{}_crv_grp'.format(name))
+    main_grp = mc.group(surface, curve_grp, name='{}_srf_grp'.format(name))
+
+    return {'curves': curve_list,
+            'surface': surface,
+            'container': main_grp}
+
+
+def curve_from_a_to_b(start, end, proxy=False, bind=False, name=''):
+    """
+    Creates 1 linear curve from selection A to selection B
+    :param start:
+    :param end:
+    :param proxy:
+    :param bind:
+    :param name:
+    :return curve:
+    """
+    # get positions
+    end_tr = mc.xform(end, q=True, t=True, ws=True)
+    start_tr = mc.xform(start, q=True, t=True, ws=True)
+    # create curve
+    bridge_curve = mc.curve(d=True, p=[start_tr, end_tr], name='{}_crv'.format(name))
+    cmds.delete(bridge_curve, ch=1)
+
+    if proxy:
+        mc.setAttr("{}.overrideEnabled".format(bridge_curve), 1)
+        mc.setAttr("{}.overrideDisplayType".format(bridge_curve), 1)
+
+    if bind:
+        mc.skinCluster(start, end, bridge_curve,
+                       toSelectedBones=True,
+                       bindMethod=0,
+                       skinMethod=0,
+                       normalizeWeights=1)
+
+    return bridge_curve
+
+
+def constraint_blend():
+    pass
+
+
+# def group_items_in_index_order(group):
+#     children = mc.listRelatives(group, children=1)
+#     pass

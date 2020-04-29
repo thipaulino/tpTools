@@ -28,82 +28,53 @@ import os
 
 # FOLLICLE SECTION __________________________________________________________________
 
-def sys_from_edge_loop(egde, surface, name=""):
-    # Extract curve from edge
-    # Build Anchor Curve from Slc Edges-> Get Name -> Del History
-    cmds.select(edge_slct)
-    anchor_curve = cmds.polyToCurve(name=sys_side + sys_purpose + '_Anchor_Crv', form=2,
-                                    degree=1, conformToSmoothMeshPreview=0)[0]
-
-    reverse_crv = xDirection_positive(anchor_curve)
-    if reverse_crv is False: cmds.reverseCurve(anchor_curve, ch=0, rpo=1)
-    cmds.delete(anchor_curve, ch=1)
-
-    # Duplicate -> Rebuild to low res
-
-    # Creat locators on each CV
-    locator_list = locator_on_cv_set(anchor_curve)
-    # Connect locators to CVs
-    connect_locator_to_crv(locator_list, anchor_curve)
-
-    # Wire high res to low res curve
-    # Create joints on each low res CV
-    # bind low res curve to joints
-    # Create controls for each joint
-    # Connect control/joint transforms
-
-    # Create system on surface
-    surface_sys_data = follicle_on_closest_point(surface, locator_list, name)
-    # Group and organize system on Outliner
-
-
 def follicle_on_closest_point(surface, locator_list, name=""):
 
     surface_shape = cmds.listRelatives(surface, type="shape")[0]
     follicle_dict = {}
     closest_point_node_list = []
-    setrange_node_list = []
+    set_range_node_list = []
 
     for n, loc in enumerate(locator_list):
         # Create Point on Curve Info node
-        closesPoint_node = cmds.createNode("closestPointOnSurface", n="{}_{:02d}_closestPointOnSrf")
-        closest_point_node_list.append(closesPoint_node)
+        closest_point_node = cmds.createNode("closestPointOnSurface", n="{}_{:02d}_closestPointOnSrf")
+        closest_point_node_list.append(closest_point_node)
         # Create follicle on surface
-        follice_data = create_follicle(input_surface=[surface_shape], hide=0, name="{}_{:02d}_Flc".format(name, n))
-        follicle_dict.update({follice_data[0]:follice_data[1]})
+        follicle_data = create_follicle(input_surface=[surface_shape], hide=0, name="{}_{:02d}_Flc".format(name, n))
+        follicle_dict.update({follicle_data[0]: follicle_data[1]})
 
         # Connect surface to pci
-        cmds.connectAttr(surface_shape + ".local", closesPoint_node + ".inputSurface", f=1)
+        cmds.connectAttr(surface_shape + ".local", closest_point_node + ".inputSurface", f=1)
         # Connect locator to pci
-        cmds.connectAttr(loc + ".translate", closesPoint_node + ".inPosition")
+        cmds.connectAttr(loc + ".translate", closest_point_node + ".inPosition")
 
         # Create set range for parameterV
-        setRage_node = cmds.shadingNode("setRange", asUtility=1, n="{}_{:02d}_setRange".format(name, n))
-        setrange_node_list.append(setRage_node)
+        set_range_node = cmds.shadingNode("setRange", asUtility=1, n="{}_{:02d}_setRange".format(name, n))
+        set_range_node_list.append(set_range_node)
         # Get surface max U and V parameters
-        cmds.connectAttr(surface_shape + ".maxValueV", setRage_node + ".oldMaxX")
-        cmds.connectAttr(surface_shape + ".maxValueU", setRage_node + ".oldMaxY")
-        cmds.setAttr(setRage_node + ".maxX", 1)
-        cmds.setAttr(setRage_node + ".maxY", 1)
+        cmds.connectAttr(surface_shape + ".maxValueV", set_range_node + ".oldMaxX")
+        cmds.connectAttr(surface_shape + ".maxValueU", set_range_node + ".oldMaxY")
+        cmds.setAttr(set_range_node + ".maxX", 1)
+        cmds.setAttr(set_range_node + ".maxY", 1)
         # Connect pci to follicle
-        cmds.connectAttr(closesPoint_node + ".parameterV", setRage_node + ".valueX", f=1)
-        cmds.connectAttr(closesPoint_node + ".parameterU", setRage_node + ".valueY", f=1)
-        cmds.connectAttr(setRage_node + ".outValueX", follice_data[1] + ".parameterV")
-        cmds.connectAttr(setRage_node + ".outValueY", follice_data[1] + ".parameterU")
+        cmds.connectAttr(closest_point_node + ".parameterV", set_range_node + ".valueX", f=1)
+        cmds.connectAttr(closest_point_node + ".parameterU", set_range_node + ".valueY", f=1)
+        cmds.connectAttr(set_range_node + ".outValueX", follicle_data[1] + ".parameterV")
+        cmds.connectAttr(set_range_node + ".outValueY", follicle_data[1] + ".parameterU")
 
-    return follicle_dict, closest_point_node_list, setrange_node_list
+    return follicle_dict, closest_point_node_list, set_range_node_list
 
 
 def connect_locator_to_crv(loc_list, crv):
 
     for loc in loc_list:
         loc_pos = cmds.xform(loc, q=1, ws=1, t=1)
-        loc_u = getUParam(loc_pos, anchor_curve)
-        pciNode_name = loc.replace("_loc", "_pci")
-        pciNode = cmds.createNode("pointOnCurveInfo", n=pciNode_name)
-        cmds.connectAttr(anchor_curve + ".worldSpace", pciNode + ".inputCurve")
-        cmds.setAttr(pciNode + ".parameter", loc_u)
-        cmds.connectAttr(pciNode + ".position" , loc + ".t")
+        loc_u = getUParam(loc_pos, crv)
+        pci_node_name = loc.replace("_loc", "_pci")
+        pci_node = cmds.createNode("pointOnCurveInfo", n=pci_node_name)
+        cmds.connectAttr(crv + ".worldSpace", pci_node + ".inputCurve")
+        cmds.setAttr(pci_node + ".parameter", loc_u)
+        cmds.connectAttr(pci_node + ".position", loc + ".t")
 
 
 def locator_on_cv_set(path_crv):
@@ -137,14 +108,13 @@ def follicle_2d(name="", rows=3, columns=3, width_percentage=1, height_percentag
     :param height_percentage:
     :return:
     """
-
-    # If columns/rows equals 1, position in center
+    # if columns/rows equals 1, position in center
     surface_u_step = 0.5 if columns == 1.0 else (100 / (columns - 1) / 100) * width_percentage
     surface_v_step = 0.5 if rows == 1.0 else (100 / (rows-1) / 100) * height_percentage
-
+    # get selection
     surface = cmds.ls(sl=1)[0]
     surface_shape = cmds.listRelatives(surface, type="shape")
-
+    # declare lists
     follicle_list = []
     joint_list = []
 
@@ -153,7 +123,7 @@ def follicle_2d(name="", rows=3, columns=3, width_percentage=1, height_percentag
             u_parameter = surface_u_step if columns == 1.0 else surface_u_step * i
             v_parameter = surface_v_step if rows == 1.0 else surface_v_step * y
 
-            follicle_data = create_follicle(input_surface=surface_shape, uVal=u_parameter, vVal=v_parameter,
+            follicle_data = create_follicle(input_surface=surface_shape, u_val=u_parameter, v_val=v_parameter,
                                             name="{}_Flc_C{}_R{}".format(name, i, y), hide=0)
             joint = cmds.joint(n="{}_Jnt_C{}_R{}".format(name, i, y))
 
@@ -174,7 +144,17 @@ def follicle_2d(name="", rows=3, columns=3, width_percentage=1, height_percentag
             'follicles': follicle_list}
 
 
-def create_follicle(input_surface=[], scaleGrp='', uVal=0.5, vVal=0.5, hide=1, name='follicle'):
+def create_follicle(input_surface=[], scale_grp='', u_val=0.5, v_val=0.5, hide=1, name='follicle'):
+    """
+    Creates follicle on nurbs surface or geo
+    :param input_surface:
+    :param scale_grp:
+    :param u_val:
+    :param v_val:
+    :param hide:
+    :param name:
+    :return follicle:
+    """
     # Create a follicle
     follicle_shape = cmds.createNode('follicle')
     # Get the transform of the follicle
@@ -196,8 +176,8 @@ def create_follicle(input_surface=[], scaleGrp='', uVal=0.5, vVal=0.5, hide=1, n
     cmds.connectAttr((follicle_shape + '.outRotate'), (follicle + '.rotate'))
     cmds.connectAttr((follicle_shape + '.outTranslate'), (follicle + '.translate'))
     # Set the uValue and vValue for the current follicle
-    cmds.setAttr((follicle_shape + '.parameterU'), uVal)
-    cmds.setAttr((follicle_shape + '.parameterV'), vVal)
+    cmds.setAttr((follicle_shape + '.parameterU'), u_val)
+    cmds.setAttr((follicle_shape + '.parameterV'), v_val)
     # Lock the translate/rotate of the follicle
     cmds.setAttr((follicle + '.translate'), lock=True)
     cmds.setAttr((follicle + '.rotate'), lock=True)
@@ -206,9 +186,9 @@ def create_follicle(input_surface=[], scaleGrp='', uVal=0.5, vVal=0.5, hide=1, n
     if hide:
         cmds.setAttr((follicle_shape + '.visibility'), 0)
     # If a scale-group was defined and exists
-    if scaleGrp and cmds.objExists(scaleGrp):
+    if scale_grp and cmds.objExists(scale_grp):
         # Connect the scale-group to the follicle
-        cmds.connectAttr((scaleGrp + '.scale'), (follicle + '.scale'))
+        cmds.connectAttr((scale_grp + '.scale'), (follicle + '.scale'))
         # Lock the scale of the follicle
         cmds.setAttr((follicle + '.scale'), lock=True)
 
@@ -218,7 +198,7 @@ def create_follicle(input_surface=[], scaleGrp='', uVal=0.5, vVal=0.5, hide=1, n
 def find_center():
     """
     Place locator in object center
-    :return:
+    :return locator:
     """
     select = cmds.ls(sl=1)
     axis_x = axis_y = axis_z = 0
@@ -237,97 +217,10 @@ def find_center():
     locator = cmds.spaceLocator()
     cmds.xform(locator, ws=1, t=avg)
 
+    return locator
+
 
 # JOINT SECTION __________________________________________________________________
-
-def jointChainMultiCrv(addIk=0, bind=0, loft=0, cluster=0, name=""):
-    """
-    ikSpline Loft System
-    :param addIk:
-    :param bind:
-    :param loft:
-    :param cluster:
-    :param name:
-    :return:
-    """
-    raw_curves = cmds.ls(sl=1)
-    curves = []
-    ikHandle_list = []
-    ikSpline_crv_list = []
-    joint_list = []
-    grp_list = []
-
-    # Creating brand new, clean curves out of selection
-    for j, i in enumerate(raw_curves, 1):
-        new_curve = cmds.duplicate(i, n="{}_Loft_Crv{}".format(name, j))
-        cmds.parent(new_curve, w=1)
-        cmds.makeIdentity(new_curve, apply=True, t=1, r=1, s=1, n=0)
-        cmds.delete(new_curve, ch=1)
-        cmds.xform(new_curve, cp=1)
-        curves.append(new_curve[0])
-
-    # Joint chain and ikSpline section
-    for n, i in enumerate(curves):
-        crv_joint_list = joints_on_cv_set(path_crv=i)
-        parent_in_order(sel=crv_joint_list)
-        joint_list.append(crv_joint_list[0])
-        cmds.select(cl=1)
-
-        if addIk == 1:
-            # Creating ikSpline - rename curve - append to grouping lists
-            ikHandle_data = cmds.ikHandle(sj=crv_joint_list[0], ee=crv_joint_list[-1], sol="ikSplineSolver",
-                                          n=i + "_ikHandle")
-            ik_crv = cmds.rename(ikHandle_data[2], "{}_ikSpline_Crv{}".format(name, n+1))
-            ikHandle_list.append(ikHandle_data[0])
-            ikSpline_crv_list.append(ik_crv)
-
-            if n == 0:
-                # If it is the first loop - create groups - else - parent new items
-                ik_grp = cmds.group(ikHandle_data[0], n=name + "_ikHandle_Grp")
-                spline_grp = cmds.group(ik_crv, n=name + "_ikSpline_Crv_Grp")
-                grp_list.append(ik_grp)
-                grp_list.append(spline_grp)
-            else:
-                cmds.parent(ikHandle_data[0], ik_grp)
-                cmds.parent(ik_crv, spline_grp)
-
-        if bind == 1: cmds.skinCluster(crv_joint_list, i)
-
-    if loft == 1:
-        loft_data = cmds.loft(curves, ch=1, u=1, c=0, ar=0, d=3, ss=10, rn=0, po=1, rsn=1)
-        loft_srf = cmds.rename(loft_data[0], name + "_LoftSrf_Geo")
-        loft_grp = cmds.group(loft_srf, n=name + "_LoftSrf_Geo_Grp")
-        grp_list.append(loft_grp)
-
-    if cluster == 1 and addIk == 1:
-        # Creates clusters honlding the same cv on each ikSpline curve
-        # Calculating the number of Cv's for loop
-        curveDeg = cmds.getAttr(ikSpline_crv_list[0] + ".degree")
-        curveSpa = cmds.getAttr(ikSpline_crv_list[0] + ".spans")
-        # CV's = degrees + spans
-        cvCount = curveDeg + curveSpa
-        cls_list = []
-
-        for i in range(cvCount):
-            cmds.select(cl=1)
-            for j in ikSpline_crv_list: cmds.select("{}.cv[{}]".format(j, i), add=1)
-            cluster = cmds.cluster(n="{}_Csl{}".format(name, i))
-            cls_list.append(cluster[1])
-
-        cluster_grp = cmds.group(cls_list, n=name + "_Cls_Grp")
-        grp_list.append(cluster_grp)
-
-    else:
-        cmds.warning("addIk is off")
-
-    curves_grp = cmds.group(curves, n="{}_Loft_Crv_Grp".format(name))
-    joint_grp = cmds.group(joint_list, n=name + "_Jnt_Grp")
-    grp_list.append(curves_grp)
-    grp_list.append(joint_grp)
-    sys_grp = cmds.group(grp_list, n=name + "_Sys_Grp")
-
-    return sys_grp
-
 
 def joint_on_selection_list():
     """
@@ -344,11 +237,11 @@ def joint_on_selection_list():
         rotate = cmds.xform(i, q=1, ro=1)
         scale = cmds.xform(i, q=1, s=1)
 
-        newJoint = cmds.joint(n=i + "_Jnt")
+        new_joint = cmds.joint(n=i + "_Jnt")
         cmds.select(cl=1)
-        cmds.xform(newJoint, t=translate, ro=rotate, s=scale)
+        cmds.xform(new_joint, t=translate, ro=rotate, s=scale)
 
-        joint_list.append(newJoint)
+        joint_list.append(new_joint)
 
     return joint_list
 
@@ -371,6 +264,7 @@ def joints_on_cv_set(path_crv):
         joint_list.append(joint)
 
     return joint_list
+
 
 '''
 # Zero/Offset/Space Joints 
@@ -448,33 +342,33 @@ def build_ctrl(ctrl_type="circle", name="", suffix="_ctrl", scale=1, spaced=1, o
     # Creates offset group for static control
     if offset == 1:
         offset_grp = cmds.group(c1, n=name + suffix + "_Offset_Grp")
-        mpDivide_node = cmds.shadingNode('multiplyDivide', au=1)
+        multiply_divide_node = cmds.shadingNode('multiplyDivide', au=1)
 
-        cmds.connectAttr(c1 + '.translate', mpDivide_node + '.input1')
-        cmds.connectAttr(mpDivide_node + '.output', offset_grp + '.translate')
-        cmds.setAttr(mpDivide_node + '.input2X', -1)
-        cmds.setAttr(mpDivide_node + '.input2Y', -1)
-        cmds.setAttr(mpDivide_node + '.input2Z', -1)
+        cmds.connectAttr(c1 + '.translate', multiply_divide_node + '.input1')
+        cmds.connectAttr(multiply_divide_node + '.output', offset_grp + '.translate')
+        cmds.setAttr(multiply_divide_node + '.input2X', -1)
+        cmds.setAttr(multiply_divide_node + '.input2Y', -1)
+        cmds.setAttr(multiply_divide_node + '.input2Z', -1)
         pack.append(offset_grp)
 
     return pack
 
 
-def place_on_selection(type="circle", scale=1, spaced=1):
+def place_on_selection(ctrl_type="circle", scale=1, spaced=1):
     """
     Control on each selection
-    :param type:
+    :param ctrl_type:
     :param scale:
     :param spaced:
     :return:
     """
     sel = cmds.ls(sl=1)
 
-    for n, i in enumerate(sel):
-        position = cmds.xform(i, q=1, t=1, ws=1)
-        rotation = cmds.xform(i, q=1, ro=1, ws=1)
+    for n, item in enumerate(sel):
+        position = cmds.xform(item, q=1, t=1, ws=1)
+        rotation = cmds.xform(item, q=1, ro=1, ws=1)
 
-        control = build_ctrl(ctrl_type=type, name=i, scale=scale, spaced=spaced)
+        control = build_ctrl(ctrl_type=ctrl_type, name=item, scale=scale, spaced=spaced)
 
         if spaced == 1:
             cmds.xform(control[1], t=position, ro=rotation)
@@ -520,23 +414,22 @@ def add_offset_grp(user_item):
     return grp
 
 
-def control_on_cv_list():
-    """
-    Controls on CV's
-    """
-    path_crv = cmds.ls(sl=1)[0]
-    cv_list = cmds.getAttr(path_crv + '.cv[:]')
+# def control_on_cv_list():
+#     """
+#     Controls on CV's
+#     """
+#     path_crv = cmds.ls(sl=1)[0]
+#     cv_list = cmds.getAttr(path_crv + '.cv[:]')
+#
+#     for i, cv in enumerate(cv_list):
+#         ctrl = tp_staticCtrl('ctrl_cv' + str(i))
+#         cmds.xform(ctrl[1], t= cv)
 
-    for i, cv in enumerate(cv_list):
-        ctrl = tp_staticCtrl('ctrl_cv' + str(i))
-        cmds.xform(ctrl[1], t= cv)
 
-
-def place_on_clusters(name="", type="circle", scale=1, color=(1, 1, 1), parent_constraint=0):
+def ctrl_on_cluster_set(ctrl_type="circle", scale=1, color=(1, 1, 1), parent_constraint=0):
     """
     Control on each Cluster selection
-    :param name:
-    :param type:
+    :param ctrl_type:
     :param scale:
     :param color:
     :param parent_constraint:
@@ -548,7 +441,7 @@ def place_on_clusters(name="", type="circle", scale=1, color=(1, 1, 1), parent_c
         cls_shape = cmds.listRelatives(cluster, type="shape")
         cls_tr = cmds.getAttr(cls_shape[0] + ".origin")[0]
 
-        new_ctrl = build_ctrl(ctrl_type=type, name=cluster, suffix="_ctrl".format(n),
+        new_ctrl = build_ctrl(ctrl_type=ctrl_type, name=cluster, suffix="_ctrl".format(n),
                               scale=scale, spaced=1, offset=0)
         set_ctrl_color(new_ctrl[0], color=color)
         cmds.xform(new_ctrl[1], t=cls_tr)
@@ -556,7 +449,7 @@ def place_on_clusters(name="", type="circle", scale=1, color=(1, 1, 1), parent_c
             cmds.parentConstraint(new_ctrl[0], cluster, mo=1)
 
 
-def place_on_joints(name, scale=1, color=(1, 1, 1), parent_constraint=0):
+def ctrl_on_joint_set(name, scale=1, color=(1, 1, 1), parent_constraint=0):
     """
     Control on each Joint selection
     :param name:
@@ -572,7 +465,7 @@ def place_on_joints(name, scale=1, color=(1, 1, 1), parent_constraint=0):
         rotation = cmds.joint(i, q=1, o=1)
         new_ctrl = build_ctrl(ctrl_type="circle", name=name, suffix="_Ctrl{}".format(n),
                               scale=scale, spaced=1, offset=0)
-        set_ctrl_color(new_ctrl[0], color = color)
+        set_ctrl_color(new_ctrl[0], color=color)
         cmds.xform(new_ctrl[1], t=position, ro=rotation)
         if parent_constraint == 1:
             cmds.parentConstraint(new_ctrl[0], i, mo=1)
@@ -591,7 +484,8 @@ def parent_fk_order():
 
     for y, z in enumerate(groups):
         cmds.parent(z, ctrls[y+1])
-        if y+1 >= len(groups-1): break
+        if y+1 >= len(groups-1):
+            break
 
 
 def multi_set_color(color=(1, 1, 1)):
@@ -605,13 +499,13 @@ def multi_set_color(color=(1, 1, 1)):
         set_ctrl_color(ctrl=i, color=color)
 
 
-def set_ctrl_color(ctrl, color = (1,1,1)):
+def set_ctrl_color(ctrl, color=(1, 1, 1)):
     """
     Set control color
     :param ctrl:
     :param color:
     """
-    rgb = ("R","G","B")
+    rgb = ("R", "G", "B")
 
     cmds.setAttr(ctrl + ".overrideEnabled", 1)
     cmds.setAttr(ctrl + ".overrideRGBColors", 1)
@@ -621,17 +515,17 @@ def set_ctrl_color(ctrl, color = (1,1,1)):
         cmds.setAttr("{}.overrideColor{}".format(ctrl, channel), color)
 
 
-def placeCtrlsOnCrv(name, amount):
+def place_ctrls_on_crv(name, amount):
     """
     place controls on curve
     :param name:
     :param amount:
     """
     crv = cmds.ls(sl=1)
-    crvStep = 100 / (amount-1) / 100
+    crv_step = 100 / (amount-1) / 100
 
     for i in range(int(amount)):
-        parameter = crvStep * i
+        parameter = crv_step * i
         position = get_point_on_curve(crv, parameter, 1)
         build_ctrl(name + str(i), position[0], position[1])
 
@@ -646,50 +540,50 @@ def get_point_on_curve(crv, parameter, inverse=0):
     :return translation and rotation list:
     """
     poc_loc = cmds.spaceLocator(name='Poc_Temp_Loc')
-    mPath_Crv = cmds.duplicate(crv, name='mPath_Temp_Crv')[0]
-    cmds.delete(mPath_Crv, ch=1)
+    m_path_crv = cmds.duplicate(crv, name='mPath_Temp_Crv')[0]
+    cmds.delete(m_path_crv, ch=1)
 
-    mPath = cmds.pathAnimation(poc_loc, mPath_Crv, n= 'mPath_Temp', fractionMode=1, followAxis= 'x', upAxis= 'y',
-                               worldUpType= "vector", inverseUp= inverse, inverseFront= inverse)
-    cmds.disconnectAttr(mPath + '_uValue.output', mPath + '.uValue')
-    cmds.setAttr(mPath + '.uValue', parameter)
+    m_path = cmds.pathAnimation(poc_loc, m_path_crv, n='mPath_Temp', fractionMode=1, followAxis='x', upAxis='y',
+                                worldUpType='vector', inverseUp=inverse, inverseFront=inverse)
+    cmds.disconnectAttr(m_path + '_uValue.output', m_path + '.uValue')
+    cmds.setAttr(m_path + '.uValue', parameter)
 
     tr = cmds.xform(poc_loc, q=1, t=1)
     rt = cmds.xform(poc_loc, q=1, ro=1)
     point = [tr, rt]
 
-    cmds.delete(mPath + '_uValue', mPath, poc_loc, mPath_Crv)
+    cmds.delete(m_path + '_uValue', m_path, poc_loc, m_path_crv)
 
     # point = [[t.x, t.y, t.z], [r.x, r.y, r.z]]
     return point
 
 
-def multi_motionpath(name, amount, inverse=0):
+def multi_motion_path(name, amount, inverse=0):
     """
     Gets position and rotation of point on curve using motion path
     :param name:
     :param amount:
     :param inverse:
     """
-    crvStep = 100 / (amount-1) / 100
-    mPath_Crv = cmds.ls(sl=1)
+    crv_step = 100 / (amount-1) / 100
+    m_path_crv = cmds.ls(sl=1)
     cmds.select(cl=1)
     loc_list = []
 
     for i in range(int(amount)):
-        parameter = crvStep * i
+        parameter = crv_step * i
         loc = cmds.spaceLocator(n=name + '_loc' + str(i))
-        mPath = cmds.pathAnimation(loc, mPath_Crv, n=name + '_mPath' + str(i), fractionMode=1, followAxis='x',
-                                   upAxis='y', worldUpType="vector", inverseUp=inverse, inverseFront=inverse)
-        cmds.disconnectAttr(mPath + '_uValue.output', mPath + '.uValue')
-        cmds.setAttr(mPath + '.uValue', parameter)
+        m_path = cmds.pathAnimation(loc, m_path_crv, n=name + '_mPath' + str(i), fractionMode=1, followAxis='x',
+                                    upAxis='y', worldUpType="vector", inverseUp=inverse, inverseFront=inverse)
+        cmds.disconnectAttr(m_path + '_uValue.output', m_path + '.uValue')
+        cmds.setAttr(m_path + '.uValue', parameter)
 
         loc_list.append(loc)
 
     cmds.group(loc_list)
 
 
-def param_from_length(curve, count, curve_type = "open", space = "uv", normalized=True):
+def param_from_length(curve, count, curve_type="open", space="uv", normalized=True):
     """
     By Orkhan Ashrofov - Ribonizer
     :param curve:
@@ -719,14 +613,14 @@ def param_from_length(curve, count, curve_type = "open", space = "uv", normalize
     param = [curve_fn.findParamFromLength(i * ((1 / float(divider)) * length)) for i in range(count)]
 
     if space == "world":
-        data=[]
+        data = []
         space = om.MSpace.kWorld
         point = om.MPoint()
         for p in param:
             curve_fn.getPointAtParam(p, point, space)
             data.append([point[0], point[1], point[2]])  # world space points
 
-    elif normalized == True:
+    elif normalized is True:
 
         def normalizer(value, old_range, new_range):
             return (value - old_range[0]) * (new_range[1] - new_range[0]) / (old_range[1] - old_range[0]) + new_range[0]
@@ -745,10 +639,10 @@ def param_from_length(curve, count, curve_type = "open", space = "uv", normalize
 
 
 def cube_over_geo():
-    object = cmds.ls(sl=1)[0]
-    bbox = cmds.getAttr(object + ".boundingBox.boundingBoxSize")[0]
+    object_sel = cmds.ls(sl=1)[0]
+    bbox = cmds.getAttr(object_sel + ".boundingBox.boundingBoxSize")[0]
 
-    obj_copy = cmds.duplicate(object, n="pivot_obj")
+    obj_copy = cmds.duplicate(object_sel, n="pivot_obj")
 
     cmds.xform(obj_copy, cp=1)
     obj_copy_tr = cmds.xform(obj_copy, q=1, piv=1)[:3]
@@ -767,21 +661,21 @@ def list_top_level():
     return nodes
 
 
-def resizeImage(sourceImage, outputImage, width, height):
+def resize_image(source_image, output_image, width, height):
     """
     Image resize function
     resizeImage('<sourceImage.png>','<outputImage.png>', 800, 600)
-    :param sourceImage:
-    :param outputImage:
+    :param source_image:
+    :param output_image:
     :param width:
     :param height:
     :return:
     """
     image = om.MImage()
-    image.readFromFile(sourceImage)
+    image.readFromFile(source_image)
 
     image.resize(width, height)
-    image.writeToFile(outputImage, 'png')
+    image.writeToFile(output_image, 'png')
 
 
 class UnknownImageFormat(Exception):
@@ -796,10 +690,10 @@ def get_image_size(file_path):
     """
     size = os.path.getsize(file_path)
 
-    with open(file_path) as input:
+    with open(file_path) as input_img:
         height = -1
         width = -1
-        data = input.read(25)
+        data = input_img.read(25)
 
         if (size >= 10) and data[:6] in ('GIF87a', 'GIF89a'):
             # GIFs
@@ -820,20 +714,20 @@ def get_image_size(file_path):
         elif (size >= 2) and data.startswith('\377\330'):
             # JPEG
             msg = " raised while trying to decode as JPEG."
-            input.seek(0)
-            input.read(2)
-            b = input.read(1)
+            input_img.seek(0)
+            input_img.read(2)
+            b = input_img.read(1)
             try:
                 while (b and ord(b) != 0xDA):
-                    while (ord(b) != 0xFF): b = input.read(1)
-                    while (ord(b) == 0xFF): b = input.read(1)
+                    while (ord(b) != 0xFF): b = input_img.read(1)
+                    while (ord(b) == 0xFF): b = input_img.read(1)
                     if (ord(b) >= 0xC0 and ord(b) <= 0xC3):
-                        input.read(3)
-                        h, w = struct.unpack(">HH", input.read(4))
+                        input_img.read(3)
+                        h, w = struct.unpack(">HH", input_img.read(4))
                         break
                     else:
-                        input.read(int(struct.unpack(">H", input.read(2))[0])-2)
-                    b = input.read(1)
+                        input_img.read(int(struct.unpack(">H", input_img.read(2))[0])-2)
+                    b = input_img.read(1)
                 width = int(w)
                 height = int(h)
             except struct.error:
@@ -863,110 +757,109 @@ def mirror_vertex_selection(vert_list, mesh):
     mirror_vert_list = []
 
     for vert in vert_list:
-        vertPos = cmds.xform(vert, q=1, t=1)
-        mirror_pos = [(vertPos[0] * -1), vertPos[1], vertPos[2]]
-        mirror_vert_list.append(getClosestVertex_v2(mesh, mirror_pos))
+        vert_pos = cmds.xform(vert, q=1, t=1)
+        mirror_pos = [(vert_pos[0] * -1), vert_pos[1], vert_pos[2]]
+        mirror_vert_list.append(get_closest_vertex_v2(mesh, mirror_pos))
 
     # cmds.select(mirror_vert_list, r=1)
 
     return mirror_vert_list
 
 
-def getClosestVertex_v2(mayaMesh, pos=(0, 0, 0)):
+def get_closest_vertex_v2(maya_mesh, pos=(0, 0, 0)):
     """
     Returns the closest vertex given a mesh and a position [x,y,z] in world space.
     Uses om2.MfnMesh.getClosestPoint() returned face ID and iterates through face's vertices
     """
 
     # Using MVector type to represent position
-    mVector = om2.MVector(pos)
-    selectionList = om2.MSelectionList()
-    selectionList.add(mayaMesh)
-    dPath = selectionList.getDagPath(0)
-    mMesh = om2.MFnMesh(dPath)
+    m_vector = om2.MVector(pos)
+    selection_list = om2.MSelectionList()
+    selection_list.add(maya_mesh)
+    d_path = selection_list.getDagPath(0)
+    m_mesh = om2.MFnMesh(d_path)
     # Getting closest face ID
-    face_ID = mMesh.getClosestPoint(om2.MPoint(mVector), space=om2.MSpace.kWorld)[1]
+    face_id = m_mesh.getClosestPoint(om2.MPoint(m_vector), space=om2.MSpace.kWorld)[1]
     # Face's vertices list
-    vert_list = cmds.ls(cmds.polyListComponentConversion('{}.f[{}]'.format(mayaMesh, face_ID), ff=True, tv=True),
+    vert_list = cmds.ls(cmds.polyListComponentConversion('{}.f[{}]'.format(maya_mesh, face_id), ff=True, tv=True),
                         flatten=True)
 
     # Setting vertex [0] as the closest one
     dist_01 = om2.MVector(cmds.xform(vert_list[0], t=True, ws=True, q=True))
-    smallestDist = math.sqrt((dist_01.x - pos[0])**2 + (dist_01.y - pos[1])**2 + (dist_01.z - pos[2])**2)
+    smallest_dist = math.sqrt((dist_01.x - pos[0])**2 + (dist_01.y - pos[1])**2 + (dist_01.z - pos[2])**2)
     # Using distance squared to compare distance
     closest = vert_list[0]
 
     # Iterating from vertex [1]
-    for i in range(1, len(vert_list)) :
+    for i in range(1, len(vert_list)):
         dist_02 = om2.MVector(cmds.xform(vert_list[i], t=True, ws=True, q=True))
-        eucDist = math.sqrt((dist_02.x - pos[0])**2 + (dist_02.y - pos[1])**2 + (dist_02.z - pos[2])**2)
+        euc_dist = math.sqrt((dist_02.x - pos[0])**2 + (dist_02.y - pos[1])**2 + (dist_02.z - pos[2])**2)
 
-        if eucDist <= smallestDist:
-            smallestDist = eucDist
+        if euc_dist <= smallest_dist:
+            smallest_dist = euc_dist
             closest = vert_list[i]
 
     return closest
 
+
 # Not in use
-def getClosestVertex(mayaMesh, pos=(0, 0, 0)):
+def get_closest_vertex(maya_mesh, pos=(0, 0, 0)):
     """
     Returns the closest vertex given a mesh and a position [x,y,z] in world space.
     Uses om2.MfnMesh.getClosestPoint() returned face ID and iterates through face's vertices
     """
 
     # Using MVector type to represent position
-    mVector = om2.MVector(pos)
-    selectionList = om2.MSelectionList()
-    selectionList.add(mayaMesh)
-    dPath = selectionList.getDagPath(0)
-    mMesh = om2.MFnMesh(dPath)
+    m_vector = om2.MVector(pos)
+    selection_list = om2.MSelectionList()
+    selection_list.add(maya_mesh)
+    d_path = selection_list.getDagPath(0)
+    m_mesh = om2.MFnMesh(d_path)
     # Getting closest face ID
-    face_ID = mMesh.getClosestPoint(om2.MPoint(mVector), space=om2.MSpace.kWorld)[1]
+    face_id = m_mesh.getClosestPoint(om2.MPoint(m_vector), space=om2.MSpace.kWorld)[1]
     # Face's vertices list
-    vert_list = cmds.ls(cmds.polyListComponentConversion('{}.f[{}]'.format(mayaMesh, face_ID), ff=True, tv=True),
+    vert_list = cmds.ls(cmds.polyListComponentConversion('{}.f[{}]'.format(maya_mesh, face_id), ff=True, tv=True),
                         flatten=True)
 
     # Setting vertex [0] as the closest one
-    d = mVector - om2.MVector(cmds.xform(vert_list[0], t=True, ws=True, q=True))
+    d = m_vector - om2.MVector(cmds.xform(vert_list[0], t=True, ws=True, q=True))
     # Using distance squared to compare distance
-    smallestDist2 = d.x * d.x + d.y * d.y + d.z * d.z
+    smallest_dist_02 = d.x * d.x + d.y * d.y + d.z * d.z
     closest = vert_list[0]
 
     # Iterating from vertex [1]
-    for i in range(1, len(vert_list)) :
-        d = mVector - om2.MVector(cmds.xform(vert_list[i], t=True, ws=True, q=True))
+    for i in range(1, len(vert_list)):
+        d = m_vector - om2.MVector(cmds.xform(vert_list[i], t=True, ws=True, q=True))
         d2 = d.x * d.x + d.y * d.y + d.z * d.z
 
-        if d2 < smallestDist2:
-            smallestDist2 = d2
+        if d2 < smallest_dist_02:
+            smallest_dist_02 = d2
             closest = vert_list[i]
 
     return closest
 
 
-def xDirection_positive(curve):
+def x_direction_positive(curve):
     """
     True if curve X direction is positive,
     False if curve X direction is negative
     """
-    x_direction = True
     # Get degrees and spans to calculte CV's
     curve_shape = cmds.listRelatives(curve, s=1)[0]
-    curveDeg = cmds.getAttr(curve_shape + ".degree")
-    curveSpa = cmds.getAttr(curve_shape + ".spans")
+    curve_deg = cmds.getAttr(curve_shape + ".degree")
+    curve_spa = cmds.getAttr(curve_shape + ".spans")
     # CV's = degrees + spans
-    cvCount = (curveDeg + curveSpa) -1
+    cv_count = (curve_deg + curve_spa) - 1
 
     start_x_position = cmds.pointPosition(curve + '.cv[0]')[0]
-    end_x_position = cmds.pointPosition(curve + '.cv[{}]'.format(cvCount))[0]
+    end_x_position = cmds.pointPosition(curve + '.cv[{}]'.format(cv_count))[0]
 
-    if start_x_position <= end_x_position: x_direction = True
-    else: x_direction = False
+    x_direction = True if start_x_position <= end_x_position else False
 
     return x_direction
 
 
-def swapHierarchy():
+def swap_hierarchy():
     # This must be out of the function
     all_group = cmds.listRelatives(cmds.ls(sl=1), ad=1)
     swap_geo = cmds.listRelatives(cmds.ls(sl=1), c=1)
@@ -978,7 +871,7 @@ def swapHierarchy():
         name_split = i.split('_')
 
         if name_split[-1] == 'CH':
-            geo_parent_dict.update({i:cmds.listRelatives(i, p=1)[0]})
+            geo_parent_dict.update({i: cmds.listRelatives(i, p=1)[0]})
 
     for i in swap_geo:
         name_split = i.split('_')
@@ -991,7 +884,7 @@ def swapHierarchy():
         cmds.rename(i, name_join)
 
 
-def mirrorSelection(selection):
+def mirror_selection(selection):
     """
     Mirror vertex selection using closest point on mesh
     :param selection:
@@ -1000,11 +893,11 @@ def mirrorSelection(selection):
     selection = cmds.filterExpand(selection, sm=31)
     geo = selection[0].split('.')[0]
     geo_shape = cmds.listRelatives(geo, type='shape')[0]
-    closestPoint_node = cmds.createNode("closestPointOnMesh")
+    closest_point_node = cmds.createNode("closestPointOnMesh")
     locator = cmds.spaceLocator(n='pointer_loc')[0]
 
-    cmds.connectAttr(geo_shape + ".worldMesh[0]", closestPoint_node + ".inMesh")
-    cmds.connectAttr(locator + '.translate', closestPoint_node + '.inPosition')
+    cmds.connectAttr(geo_shape + ".worldMesh[0]", closest_point_node + ".inMesh")
+    cmds.connectAttr(locator + '.translate', closest_point_node + '.inPosition')
 
     mirror_vert_list = []
 
@@ -1013,11 +906,11 @@ def mirrorSelection(selection):
         mirror_position = [position[0] * -1, position[1], position[2]]
         cmds.xform(locator, t=mirror_position)
 
-        mirror_vert_index = cmds.getAttr(closestPoint_node + ".closestVertexIndex")
+        mirror_vert_index = cmds.getAttr(closest_point_node + ".closestVertexIndex")
         mirror_vert = "{}.vtx[{}]".format(geo, mirror_vert_index)
         mirror_vert_list.append(mirror_vert)
 
-    cmds.delete(locator, closestPoint_node)
+    cmds.delete(locator, closest_point_node)
     cmds.select(mirror_vert_list)
 
     return mirror_vert_list
@@ -1036,6 +929,7 @@ def remote_loc_all_joints(selection):
         try:
             parent_dict.update({i: cmds.listRelatives(i, parent=1)[0]})
         except:
+            print('Object has no relatives')
             continue
 
     # Un-parent all joints - parent to world

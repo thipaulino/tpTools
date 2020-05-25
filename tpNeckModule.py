@@ -63,25 +63,18 @@ class NeckModule:
             add c7 control
             add c1/atlas control
     """
-    def __init__(self):
+    def __init__(self, pointers, scale):
+        # execute function
+        self.module_data = build_neck_module(pointers, scale)
+
+        # attributes
+        self.module_name = ''
+        self.parts_list = []
+        self.bind_joint_list = []
+        self.util_joint_list = []
+
+        # unpack
         self.joint_id_list = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7']
-        self.joint_data = {
-            'c1': {'output': '',
-                   'driver': '',
-                   'offset': '',
-                   'parent': ''},
-            'c2': {'output': '',
-                   'driver': ''},
-            'c3': {'output': '',
-                   'driver': ''},
-            'c4': {'output': '',
-                   'driver': ''},
-            'c5': {'output': '',
-                   'driver': ''},
-            'c6': {'output': '',
-                   'driver': ''},
-            'c7': {'output': '',
-                   'driver': ''}}
 
         # load neck module data
         self.template = tpt.RigTemplate()
@@ -93,36 +86,22 @@ class NeckModule:
         self.module = self.rig.create_module('neck')
 
         self.members_data = {}
-        self.module_data = {}
         self.members_relation = {}
+
+    def module_name(self):
+        pass
+
+    def parts_list(self):
+        pass
+
+    def bind_joint_list(self):
+        pass
+
+    def util_joint_list(self):
+        pass
 
     def build(self):
         pass
-
-    def create_driver_joint_set(self):
-        for member in self.joint_data:
-            self.template.load_loc(self.mod_members[member])
-            driver = self.template.loc_spit_joint()
-            output = self.template.loc_spit_joint()
-
-            self.joint_data[member].update({'output': output,
-                                            'driver': driver})
-
-    def create_driver_set(self):
-        for member in self.joint_data:
-            self.template.load_loc(self.mod_members[member])
-            driver = self.template.loc_spit_joint()
-
-            self.joint_data[member].update({'driver': driver})
-
-        for member in self.joint_data:
-            self.template.load_loc(self.mod_members[member])
-            parent = self.template.loc_parent()
-
-            self.template.load_loc(parent)
-            parent_id = self.template.loc_data['unique_name']
-
-            self.template.load_loc(self.mod_members[member])
 
     def create_rig_joint(self):
         pass
@@ -219,6 +198,7 @@ def build_neck_module(pointer_list, scale=1):
 
     # CONTROLS SETUP SECTION ________________________________________________________________________
 
+    # define controls/follicles uv position
     sys_data['controls'] = {
         'mid': 0.5,
         'c1': 0,

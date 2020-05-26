@@ -117,14 +117,19 @@ def build_neck_module(pointer_list, scale=1):
     :param pointer_list:
     :param scale:
     :return sys_data:
-        dict{joint_data: c1...c7: bind
-                                  driver
-                                  driver_00_offset
-                                  driver_01_offset
+        dict{c1...c7: bind
+                      driver
+                      driver_00_offset
+                      driver_01_offset
             control: mid, c1, c7: control
                                   control_grp
             follicle: mid, c1, c7: transform
-                                   shape}
+                                   shape
+            groups: module
+                    joint
+                    follicle
+                    surface
+                    control}
     """
     module_name = 'neck'
     names_list = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7']
@@ -192,20 +197,16 @@ def build_neck_module(pointer_list, scale=1):
     # CONTROLS SETUP SECTION ________________________________________________________________________
 
     # define controls/follicles uv position
+    module_data['controls'] = {}
+    module_data['follicles'] = {}
+
     ctrl_setup_data = {
-        'mid': 0.5,
-        'c1': 0,
-        'c7': 1
-    }
-    module_data['controls'] = {
         'mid': 0.5,
         'c1': 0,
         'c7': 1}
 
-    module_data['follicles'] = {}
-
     # create controls on follicles
-    for ctrl in module_data['controls']:
+    for ctrl in ctrl_setup_data:
         flc_data = tpu.create_follicle(surface_shape, u_val=module_data['controls'][ctrl],
                                        v_val=0.5, name='{}_ctrl_flc'.format(ctrl))
         module_data['follicles'].update({ctrl: flc_data})
@@ -221,14 +222,16 @@ def build_neck_module(pointer_list, scale=1):
     # create gear down node for mid control
     divide_node = mc.createNode('multiplyDivide')
     mc.setAttr('{}.operation'.format(divide_node), 2)
+
     for n in 'XYZ':
         mc.setAttr('{}.input2{}'.format(divide_node, n), 3)
+
     mc.connectAttr('{}.r'.format(module_data['controls']['mid']['control']),
                    '{}.input1'.format(divide_node))
 
-    # connect mid control to all offset groups
+    # list all offset groups
     offset_grp_list = [module_data[item]['driver_00_offset'] for item in names_list]
-
+    # connect mid control to all offset groups
     for item in offset_grp_list:
         # stop on c6, not connecting c7
         if item == offset_grp_list[-1]:
@@ -264,22 +267,11 @@ def build_neck_module(pointer_list, scale=1):
         control_grp,
         name='{}_module_grp'.format(module_name))
 
-    # return
-    # bind joints
-    # rig joints
-    # controls
-    # surface
-    # groups
+    module_data['groups'] = {
+        'module': module_grp,
+        'joint': joint_grp,
+        'surface': surface_grp,
+        'follicle': follicle_grp,
+        'control': control_grp}
 
     return module_data
-
-
-
-
-
-
-
-
-
-
-

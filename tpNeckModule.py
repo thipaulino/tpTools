@@ -7,9 +7,17 @@ import tpUnit as unt
 """
 Neck module plan
     fix mouth bag - DONE
-    develop neck module
+    develop neck module - 
     develop head module
     develop RigBuild Class
+    
+    prototype
+        eyebrow prototype
+        orbicularis oculi prototype
+        eye 2.0 prototype
+        ear prototype
+    
+    connect to rig hub
     
 Order of action
     rig class level
@@ -63,44 +71,79 @@ class NeckModule:
             add c7 control
             add c1/atlas control
     """
-    def __init__(self, pointers, scale):
+    def __init__(self, pointer_list, scale):
+        self.guide_pointers = pointer_list
+        self.module_scale = scale
         # execute function
-        self.module_data = build_neck_module(pointers, scale)
+        self.module_data = {}
 
         # attributes
-        self.module_name = ''
+        self.module_name = 'neck'
+        self.module_group = ''
+        self.groups = {}
+        self.module_tag = ''
         self.parts_list = []
         self.bind_joint_list = []
-        self.util_joint_list = []
+        self.driver_joint_list = []
+        self.joint_data = {}
+
+        self.controls_data = {}
+        self.c1_ctrl_data = {}
+        self.mid_ctrl_data = {}
+        self.c7_ctrl_data = {}
 
         # unpack
         self.joint_id_list = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7']
 
         # load neck module data
-        self.template = tpt.RigTemplate()
-        self.tmp_neck_mod = self.template.load_sys_by_id('neck')
-        self.mod_members = self.template.sys_members_id()
+        # self.template = tpt.RigTemplate()
+        # self.tmp_neck_mod = self.template.load_sys_by_id('neck')
+        # self.mod_members = self.template.sys_members_id()
 
         # initialize rig class
-        self.rig = Rig.Rig()
-        self.module = self.rig.create_module('neck')
+        # self.rig = Rig.Rig()
+        # self.module = self.rig.create_module('neck')
 
-        self.members_data = {}
-        self.members_relation = {}
+        # self.members_data = {}
+        # self.members_relation = {}
+
+    def store_pointers(self, pointer_list):
+        self.guide_pointers = mc.ls(sl=True)
+
+    def set_scale(self, value):
+        self.module_scale = value
+
+    def build(self):
+        if self.guide_pointers:
+            self.module_data = build_neck_module(self.guide_pointers, self.module_scale)
+            self.unpack_data()
+        else:
+            mc.warning('No pointers have been stored')
+
+    def unpack_data(self):
+        data = self.module_data
+
+        self.groups = data['groups']
+        self.module_group = data['groups']['module']
+        self.joint_data = data['joints']
+        self.bind_joint_list = [joint['bind'] for joint in data['joints']]
+        self.driver_joint_list = [joint['driver'] for joint in data['joints']]
+        self.controls_data = data['controls']
+        self.c1_ctrl_data = data['controls']['c1']
+        self.mid_ctrl_data = data['controls']['mid']
+        self.c7_ctrl_data = data['controls']['c7']
+        pass
 
     def module_name(self):
         pass
 
-    def parts_list(self):
+    def part_list(self):
         pass
 
     def bind_joint_list(self):
         pass
 
     def util_joint_list(self):
-        pass
-
-    def build(self):
         pass
 
     def create_rig_joint(self):
@@ -117,10 +160,10 @@ def build_neck_module(pointer_list, scale=1):
     :param pointer_list:
     :param scale:
     :return sys_data:
-        dict{c1...c7: bind
-                      driver
-                      driver_00_offset
-                      driver_01_offset
+        dict{joints: c1...c7: bind
+                              driver
+                              driver_00_offset
+                              driver_01_offset
             control: mid, c1, c7: control
                                   control_grp
             follicle: mid, c1, c7: transform
@@ -131,18 +174,20 @@ def build_neck_module(pointer_list, scale=1):
                     surface
                     control}
     """
+    # declare function variables
     module_name = 'neck'
     names_list = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7']
     points_position_list = []
     bind_joint_list = []
     module_data = {}
+    joint_data = {}
 
     # JOINTS SETUP SECTION ________________________________________________________________________
 
     # create joint driver/bind joint sets and offset groups
     for name, pointer in zip(names_list, pointer_list):
         # creating dict item for each name
-        module_data[name] = {}
+        joint_data[name] = {}
         # get the pointer position into list
         position = mc.xform(pointer, q=True, t=True, ws=True)
         points_position_list.append(position)
@@ -151,7 +196,7 @@ def build_neck_module(pointer_list, scale=1):
         mc.select(cl=1)
         bind_joint = mc.joint(name='{}_bind_jnt'.format(name), radius=scale)
         mc.xform(bind_joint, t=position, ws=True)
-        module_data[name].update({'bind': bind_joint})
+        joint_data[name].update({'bind': bind_joint})
         bind_joint_list.append(bind_joint)
 
         # create driver joint for each pointer
@@ -163,10 +208,10 @@ def build_neck_module(pointer_list, scale=1):
         # if c1 or c7 create extra offset
         if name == names_list[0] or name == names_list[-1]:
             driver_offset_01_grp = mc.group(driver_joint, name='{}_offset_01_grp'.format(driver_joint))
-            module_data[name].update({'driver_01_offset': driver_offset_01_grp})
+            joint_data[name].update({'driver_01_offset': driver_offset_01_grp})
 
         mc.xform(driver_offset_grp, t=position, ws=True)
-        module_data[name].update({'driver': driver_joint,
+        joint_data[name].update({'driver': driver_joint,
                                   'driver_00_offset': driver_offset_grp})
 
         mc.parentConstraint(driver_joint, bind_joint, mo=True)
@@ -177,13 +222,16 @@ def build_neck_module(pointer_list, scale=1):
         if item == names_list[-1]:
             break
         # get parent and child in data dict
-        parent = module_data[names_list[index + 1]]['driver']
-        self = module_data[item]['driver_00_offset']
+        parent = joint_data[names_list[index + 1]]['driver']
+        self = joint_data[item]['driver_00_offset']
         # parent self offset group to parent driver joint
         mc.parent(self, parent)
 
     # parent bind joints in fk order
     tpu.parent_in_order(bind_joint_list, reverse=True)
+
+    # add joint data to module data
+    module_data['joints'] = joint_data
 
     # SURFACE SETUP SECTION ________________________________________________________________________
 
@@ -207,7 +255,7 @@ def build_neck_module(pointer_list, scale=1):
 
     # create controls on follicles
     for ctrl in ctrl_setup_data:
-        flc_data = tpu.create_follicle(surface_shape, u_val=module_data['controls'][ctrl],
+        flc_data = tpu.create_follicle(surface_shape, u_val=ctrl_setup_data[ctrl],
                                        v_val=0.5, name='{}_ctrl_flc'.format(ctrl))
         module_data['follicles'].update({ctrl: flc_data})
 
@@ -230,7 +278,7 @@ def build_neck_module(pointer_list, scale=1):
                    '{}.input1'.format(divide_node))
 
     # list all offset groups
-    offset_grp_list = [module_data[item]['driver_00_offset'] for item in names_list]
+    offset_grp_list = [joint_data[item]['driver_00_offset'] for item in names_list]
     # connect mid control to all offset groups
     for item in offset_grp_list:
         # stop on c6, not connecting c7
@@ -241,15 +289,15 @@ def build_neck_module(pointer_list, scale=1):
 
     # connect c1 control to start offset group
     mc.connectAttr('{}.r'.format(module_data['controls']['c1']['control']),
-                   '{}.r'.format(module_data['c1']['driver_01_offset']))
+                   '{}.r'.format(joint_data['c1']['driver_01_offset']))
     # connect c7 control to end offset group
     mc.connectAttr('{}.r'.format(module_data['controls']['c7']['control']),
-                   '{}.r'.format(module_data['c7']['driver_00_offset']))
+                   '{}.r'.format(joint_data['c7']['driver_00_offset']))
 
     # GROUP AND ORGANIZE SECTION ________________________________________________________________________
 
-    joint_grp = mc.group(module_data['c7']['bind'],
-                         module_data['c7']['driver_00_offset'],
+    joint_grp = mc.group(joint_data['c7']['bind'],
+                         joint_data['c7']['driver_00_offset'],
                          name='{}_jnt_grp'.format(module_name))
 
     surface_grp = mc.group(loft_surface, name='{}_srf_grp'.format(module_name))
@@ -267,6 +315,7 @@ def build_neck_module(pointer_list, scale=1):
         control_grp,
         name='{}_module_grp'.format(module_name))
 
+    # add groups to module data
     module_data['groups'] = {
         'module': module_grp,
         'joint': joint_grp,

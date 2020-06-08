@@ -41,7 +41,7 @@ def follicle_on_closest_point(surface, locator_list, name=""):
         closest_point_node_list.append(closest_point_node)
         # Create follicle on surface
         follicle_data = create_follicle(input_surface=[surface_shape], hide=0, name="{}_{:02d}_Flc".format(name, n))
-        follicle_dict.update({follicle_data[0]: follicle_data[1]})
+        follicle_dict.update({follicle_data['transform']: follicle_data['shape']})
 
         # Connect surface to pci
         cmds.connectAttr(surface_shape + ".local", closest_point_node + ".inputSurface", f=1)
@@ -59,8 +59,8 @@ def follicle_on_closest_point(surface, locator_list, name=""):
         # Connect pci to follicle
         cmds.connectAttr(closest_point_node + ".parameterV", set_range_node + ".valueX", f=1)
         cmds.connectAttr(closest_point_node + ".parameterU", set_range_node + ".valueY", f=1)
-        cmds.connectAttr(set_range_node + ".outValueX", follicle_data[1] + ".parameterV")
-        cmds.connectAttr(set_range_node + ".outValueY", follicle_data[1] + ".parameterU")
+        cmds.connectAttr(set_range_node + ".outValueX", follicle_data['shape'] + ".parameterV")
+        cmds.connectAttr(set_range_node + ".outValueY", follicle_data['shape'] + ".parameterU")
 
     return follicle_dict, closest_point_node_list, set_range_node_list
 
@@ -97,22 +97,23 @@ def locator_on_cv_set(path_crv):
     return locator_list
 
 
-def follicle_2d(name="", rows=3, columns=3, width_percentage=1, height_percentage=1):
+def follicle_2d(surface='', rows=3, columns=3, width_percentage=1, height_percentage=1, name=""):
     """
     Distribute follicles in a 2D array of a polygon surface
     Distribute follicles on surface + joints and controls
-    :param name:
+    :param surface:
     :param rows:
     :param columns:
     :param width_percentage:
     :param height_percentage:
+    :param name:
     :return:
     """
     # if columns/rows equals 1, position in center
     surface_u_step = 0.5 if columns == 1.0 else (100 / (columns - 1) / 100) * width_percentage
     surface_v_step = 0.5 if rows == 1.0 else (100 / (rows-1) / 100) * height_percentage
-    # get selection
-    surface = cmds.ls(sl=1)[0]
+    # get selection - if there is no user input
+    surface = surface if surface else cmds.ls(sl=1)[0]
     surface_shape = cmds.listRelatives(surface, type="shape")
     # declare lists
     follicle_list = []
@@ -127,13 +128,13 @@ def follicle_2d(name="", rows=3, columns=3, width_percentage=1, height_percentag
                                             name="{}_Flc_C{}_R{}".format(name, i, y), hide=0)
             joint = cmds.joint(n="{}_Jnt_C{}_R{}".format(name, i, y))
 
-            follicle_position = cmds.xform(follicle_data[0], q=1, t=1)
-            follicle_rotation = cmds.xform(follicle_data[0], q=1, ro=1)
+            follicle_position = cmds.xform(follicle_data['transform'], q=1, t=1)
+            follicle_rotation = cmds.xform(follicle_data['transform'], q=1, ro=1)
 
             cmds.xform(joint, t=follicle_position, ro=follicle_rotation)
-            cmds.parentConstraint(follicle_data[0], joint)
+            cmds.parentConstraint(follicle_data['transform'], joint)
 
-            follicle_list.append(follicle_data[0])
+            follicle_list.append(follicle_data['transform'])
             joint_list.append(joint)
 
     joint_group = cmds.group(joint_list, n=name + "_Jnt_Grp")
@@ -144,7 +145,7 @@ def follicle_2d(name="", rows=3, columns=3, width_percentage=1, height_percentag
             'follicles': follicle_list}
 
 
-def create_follicle(input_surface=[], scale_grp='', u_val=0.5, v_val=0.5, hide=1, name='follicle'):
+def create_follicle(input_surface, scale_grp='', u_val=0.5, v_val=0.5, hide=1, name='follicle'):
     """
     Creates follicle on nurbs surface or geo
     :param input_surface:
@@ -153,7 +154,9 @@ def create_follicle(input_surface=[], scale_grp='', u_val=0.5, v_val=0.5, hide=1
     :param v_val:
     :param hide:
     :param name:
-    :return follicle:
+    :return follicle_data:
+        dict {'transform': follicle transform,
+              'shape': follicle shape}
     """
     # Create a follicle
     follicle_shape = cmds.createNode('follicle')
@@ -192,7 +195,8 @@ def create_follicle(input_surface=[], scale_grp='', u_val=0.5, v_val=0.5, hide=1
         # Lock the scale of the follicle
         cmds.setAttr((follicle + '.scale'), lock=True)
 
-    return follicle, follicle_shape
+    return {'transform': follicle,
+            'shape': follicle_shape}
 
 
 def find_center():
@@ -279,11 +283,15 @@ for i in jnt_list:
 '''
 
 
-def parent_in_order(sel):
+def parent_in_order(sel, reverse=False):
     """
     Parent in selection order
     :param sel:
+    :param reverse:
     """
+    if reverse:
+        sel.reverse()
+
     for z, i in enumerate(sel):
         cmds.parent(sel[z+1], i)
 
@@ -293,7 +301,7 @@ def parent_in_order(sel):
 
 # CONTROL SECTION __________________________________________________________________
 
-def build_ctrl(ctrl_type="circle", name="", suffix="_ctrl", scale=1, spaced=1, offset=0):
+def build_ctrl(ctrl_type="circle", name="", suffix="_ctrl", scale=1, spaced=1, offset=0, normal=(1, 0, 0)):
     """
     ctrl_type - Cube, Sphere, Circle (add - square, pointer, arrow, spherev2)
     :param ctrl_type:
@@ -302,56 +310,54 @@ def build_ctrl(ctrl_type="circle", name="", suffix="_ctrl", scale=1, spaced=1, o
     :param scale:
     :param spaced:
     :param offset:
+    :param normal:
     :return [ctrl, ctrl_grp, offset_ctrl_grp]:
     """
-    pack = []
-    c1 = ''
+    control_data = {'control': '',
+                    'group': '',
+                    'offset_group': ''}
 
     if ctrl_type == "cube":
-        c1 = cmds.curve(n=name + suffix,
-                        p=[(-1.0, 1.0, 1.0), (-1.0, 1.0, -1.0), (1.0, 1.0, -1.0),
-                           (1.0, 1.0, 1.0), (-1.0, 1.0, 1.0), (-1.0, -1.0, 1.0),
-                           (1.0, -1.0, 1.0), (1.0, -1.0, -1.0), (-1.0, -1.0, -1.0),
-                           (-1.0, -1.0, 1.0), (-1.0, -1.0, -1.0), (-1.0, 1.0, -1.0),
-                           (1.0, 1.0, -1.0), (1.0, -1.0, -1.0), (1.0, -1.0, 1.0), (1.0, 1.0, 1.0)],
-                        k=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], d=1)
-
-        pack.append(c1)
+        control_data['control'] = cmds.curve(
+            n=name + suffix,
+            p=[(-1.0, 1.0, 1.0), (-1.0, 1.0, -1.0), (1.0, 1.0, -1.0),
+               (1.0, 1.0, 1.0), (-1.0, 1.0, 1.0), (-1.0, -1.0, 1.0),
+               (1.0, -1.0, 1.0), (1.0, -1.0, -1.0), (-1.0, -1.0, -1.0),
+               (-1.0, -1.0, 1.0), (-1.0, -1.0, -1.0), (-1.0, 1.0, -1.0),
+               (1.0, 1.0, -1.0), (1.0, -1.0, -1.0), (1.0, -1.0, 1.0), (1.0, 1.0, 1.0)],
+            k=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], d=1)
 
     elif ctrl_type == "sphere":
-        c1 = cmds.circle(n=name + suffix, nr=(1, 0, 0), r=scale, ch=0)[0]
+        control_data['control'] = cmds.circle(n=name + suffix, nr=(1, 0, 0), r=scale, ch=0)[0]
         c2 = cmds.circle(nr=(0, 1, 0), r=scale, ch=0)[0]
         c3 = cmds.circle(nr=(0, 0, 1), r=scale, ch=0)[0]
 
-        cmds.parent(cmds.listRelatives(c2, s=True), cmds.listRelatives(c3, s=True), c1, r=True, s=True)
+        cmds.parent(cmds.listRelatives(c2, s=True), cmds.listRelatives(c3, s=True),
+                    control_data['control'], r=True, s=True)
         cmds.delete(c2, c3)
-        pack.append(c1)
 
     elif ctrl_type == "circle":
-        c1 = cmds.circle(n=name + suffix, nr=(1, 0, 0), r=scale, ch=0)[0]
-        pack.append(c1)
+        control_data['control'] = cmds.circle(n=name + suffix, nr=normal, r=scale, ch=0)[0]
 
-    shapes = cmds.listRelatives(c1, f=True, s=True)
-    for y, shape in enumerate(shapes):
-        cmds.rename(shape, "{}Shape{:02d}".format(c1, y+1))
+    shapes = cmds.listRelatives(control_data['control'], f=True, s=True)
+    for n, shape in enumerate(shapes):
+        cmds.rename(shape, "{}Shape{:02d}".format(control_data['control'], n+1))
 
     if spaced == 1:
-        ctrl_grp = cmds.group(c1, n=name + suffix + "_Grp")
-        pack.append(ctrl_grp)
+        control_data['group'] = cmds.group(control_data['control'], n=name + suffix + "_Grp")
 
     # Creates offset group for static control
     if offset == 1:
-        offset_grp = cmds.group(c1, n=name + suffix + "_Offset_Grp")
-        multiply_divide_node = cmds.shadingNode('multiplyDivide', au=1)
+        control_data['offset_group'] = cmds.group(control_data['control'], n=name + suffix + "_Offset_Grp")
+        multiply_divide_node = cmds.createNode('multiplyDivide')
 
-        cmds.connectAttr(c1 + '.translate', multiply_divide_node + '.input1')
-        cmds.connectAttr(multiply_divide_node + '.output', offset_grp + '.translate')
+        cmds.connectAttr(control_data['control'] + '.translate', multiply_divide_node + '.input1')
+        cmds.connectAttr(multiply_divide_node + '.output', control_data['offset_group'] + '.translate')
         cmds.setAttr(multiply_divide_node + '.input2X', -1)
         cmds.setAttr(multiply_divide_node + '.input2Y', -1)
         cmds.setAttr(multiply_divide_node + '.input2Z', -1)
-        pack.append(offset_grp)
 
-    return pack
+    return control_data
 
 
 def place_on_selection(ctrl_type="circle", scale=1, spaced=1):
@@ -371,9 +377,9 @@ def place_on_selection(ctrl_type="circle", scale=1, spaced=1):
         control = build_ctrl(ctrl_type=ctrl_type, name=item, scale=scale, spaced=spaced)
 
         if spaced == 1:
-            cmds.xform(control[1], t=position, ro=rotation)
+            cmds.xform(control['group'], t=position, ro=rotation)
         else:
-            cmds.xform(control[0], t=position, ro=rotation)
+            cmds.xform(control['control'], t=position, ro=rotation)
 
 
 def add_offset_grp_list(user_list):
@@ -433,20 +439,28 @@ def ctrl_on_cluster_set(ctrl_type="circle", scale=1, color=(1, 1, 1), parent_con
     :param scale:
     :param color:
     :param parent_constraint:
-    :return:
+    :return control_data{cluster_name: ctrl_data}:
     """
     sel = cmds.ls(sl=1)
+    control_data = {}
 
     for n, cluster in enumerate(sel):
+        # get cluster position
         cls_shape = cmds.listRelatives(cluster, type="shape")
         cls_tr = cmds.getAttr(cls_shape[0] + ".origin")[0]
 
-        new_ctrl = build_ctrl(ctrl_type=ctrl_type, name=cluster, suffix="_ctrl".format(n),
-                              scale=scale, spaced=1, offset=0)
-        set_ctrl_color(new_ctrl[0], color=color)
-        cmds.xform(new_ctrl[1], t=cls_tr)
+        # create control
+        ctrl_data = build_ctrl(ctrl_type=ctrl_type, name=cluster, suffix="{:02d}_ctrl".format(n),
+                               scale=scale, spaced=True)
+        set_ctrl_color(ctrl_data['control'], color=color)
+        cmds.xform(ctrl_data['group'], t=cls_tr)
+        control_data[cluster] = ctrl_data
+
+        # constraint cluster to control
         if parent_constraint == 1:
-            cmds.parentConstraint(new_ctrl[0], cluster, mo=1)
+            cmds.parentConstraint(ctrl_data['control'], cluster, mo=1)
+
+    return control_data
 
 
 def ctrl_on_joint_set(name, scale=1, color=(1, 1, 1), parent_constraint=0):
@@ -459,16 +473,22 @@ def ctrl_on_joint_set(name, scale=1, color=(1, 1, 1), parent_constraint=0):
     :return:
     """
     sel = cmds.ls(sl=1)
+    control_data = {}
 
-    for n, i in enumerate(sel):
-        position = cmds.xform(i, q=1, t=1, ws=1)
-        rotation = cmds.joint(i, q=1, o=1)
+    for n, joint in enumerate(sel):
+        position = cmds.xform(joint, q=1, t=1, ws=1)
+        rotation = cmds.joint(joint, q=1, o=1)
+
         new_ctrl = build_ctrl(ctrl_type="circle", name=name, suffix="_Ctrl{}".format(n),
                               scale=scale, spaced=1, offset=0)
-        set_ctrl_color(new_ctrl[0], color=color)
-        cmds.xform(new_ctrl[1], t=position, ro=rotation)
+        set_ctrl_color(new_ctrl['control'], color=color)
+        cmds.xform(new_ctrl['group'], t=position, ro=rotation)
+        control_data[joint] = new_ctrl
+
         if parent_constraint == 1:
-            cmds.parentConstraint(new_ctrl[0], i, mo=1)
+            cmds.parentConstraint(new_ctrl['control'], joint, mo=1)
+
+    return control_data
 
 
 def parent_fk_order():
@@ -718,10 +738,12 @@ def get_image_size(file_path):
             input_img.read(2)
             b = input_img.read(1)
             try:
-                while (b and ord(b) != 0xDA):
-                    while (ord(b) != 0xFF): b = input_img.read(1)
-                    while (ord(b) == 0xFF): b = input_img.read(1)
-                    if (ord(b) >= 0xC0 and ord(b) <= 0xC3):
+                while b and ord(b) != 0xDA:
+                    while ord(b) != 0xFF:
+                        b = input_img.read(1)
+                    while ord(b) == 0xFF:
+                        b = input_img.read(1)
+                    if ord(b) >= 0xC0 and ord(b) <= 0xC3:
                         input_img.read(3)
                         h, w = struct.unpack(">HH", input_img.read(4))
                         break
@@ -961,11 +983,19 @@ def remote_loc_all_joints(selection):
     return remote_ctrl_list, parent_dict
 
 
-def rename_sel(old, new):
+def rename_replace(old, new):
     sel = mc.ls(sl=1)
 
     for item in sel:
         name = item.replace(old, new)
+        mc.rename(item, name)
+
+
+def rename_add_suffix(suffix):
+    sel = mc.ls(sl=1)
+
+    for item in sel:
+        name = '{}_{}'.format(item, suffix)
         mc.rename(item, name)
 
 
@@ -1077,24 +1107,33 @@ def get_latest_index(item_list):
     return latest_index
 
 
-# def orbi_oris_expand_surfaces():
-#     surface = mc.ls(sl=1)[0]
-#     srf_list = []
-#     # output =
-#     mod_list = {'boccinator_srf',
-#                 'depressorAnguli_srf',
-#                 'risorius_srf',
-#                 'zMajor_srf',
-#                 'zMinor_srf',
-#                 'depressorLabii_srf',
-#                 'mentalis_srf',
-#                 'levatorLabiiSup_srf',
-#                 'levatorLabiiSAN_srf',
-#                 'levatorAnguli_srf'}
-#
-#     for srf in mod_list:
-#         mod_srf = mc.duplicate(surface, n=srf)
-#         srf_list.append()
+def orbi_oris_expand_surfaces(surface='', prefix=''):
+    surface = surface if surface else mc.ls(sl=1)[0]
+    surface_list = []
+
+    mod_list = ['boccinator_srf',
+                'depressor_anguli_srf',
+                'risorius_srf',
+                'zMajor_srf',
+                'zMinor_srf',
+                'depressor_labii_srf',
+                'mentalis_srf',
+                'levator_labii_sup_srf',
+                'levator_labii_SAN_srf',
+                'orbi_oris_output_srf',
+                'levator_anguli_srf',
+                'mouth_slide_srf1',
+                'mouth_slide_srf2',
+                'jaw_srf_grp',
+                'slider_srf']
+
+    for srf in mod_list:
+        mod_srf = mc.duplicate(surface, n='{}_{}'.format(prefix, srf))
+        surface_list.append(mod_srf)
+
+    mc.group(surface_list, n='mouth_mod_srf_grp')
+
+    return surface_list
 
 
 def curves_from_surface(surface, u_or_v="v", crv_amount=10, name=""):
@@ -1130,12 +1169,6 @@ def curves_from_surface(surface, u_or_v="v", crv_amount=10, name=""):
         crv_list.append(crv[0])
 
     return crv_list
-
-
-# def load_py_modules(mod_list):
-#     for module in mod_list:
-#         importlib.import_module()
-#     pass
 
 
 def surface_from_alternate_point(sel_list, name=''):
@@ -1201,10 +1234,219 @@ def curve_from_a_to_b(start, end, proxy=False, bind=False, name=''):
     return bridge_curve
 
 
-def constraint_blend():
-    pass
+def build_mouth_blend(surface, rows=22, columns=5, name=''):
+    surface_a = mc.duplicate(surface)[0]
+    surface_b = mc.duplicate(surface)[0]
+    surfaces_data = {}
+
+    for surface in [surface_a, surface_b]:
+        follicle_data = follicle_2d(surface, rows=rows, columns=columns, name=name)
+        surfaces_data.update({surface: follicle_data})
+
+
+def multi_constraint_blend(item_list_a, item_list_b, item_list_c):
+    main_float = mc.createNode('floatConstant')
+
+    for item_a, item_b, item_c in zip(item_list_a, item_list_b, item_list_c):
+        control_float = constraint_blend(item_a, item_b, item_c)
+        mc.connectAttr('{}.outFloat'.format(main_float), '{}.inFloat'.format(control_float))
+
+    return main_float
+
+
+def constraint_blend(item_a, item_b, item_c):
+    pc_node = mc.parentConstraint(item_a, item_b, item_c)[0]
+    pc_weight_attr = mc.parentConstraint(pc_node, q=1, weightAliasList=1)
+
+    reverse_node = mc.createNode('reverse', n='{}_reverse'.format(item_c))
+    float_node = mc.createNode('floatConstant', n='{}_float'.format(item_c))
+
+    mc.connectAttr('{}.outFloat'.format(float_node), '{}.inputX'.format(reverse_node))
+
+    mc.connectAttr('{}.outFloat'.format(float_node), '{}.{}'.format(pc_node, pc_weight_attr[0]))
+    mc.connectAttr('{}.outputX'.format(reverse_node), '{}.{}'.format(pc_node, pc_weight_attr[1]))
+
+    return float_node
 
 
 # def group_items_in_index_order(group):
 #     children = mc.listRelatives(group, children=1)
 #     pass
+
+def import_all_in_folder(path, file_type):
+    """
+    Import all files of type from path
+    :param path:
+    :param file_type:
+    :return imported files:
+    """
+    files = mc.getFileList(folder=path, filespec='*.{}'.format(file_type))
+
+    if len(files) == 0:
+        cmds.warning("No files found")
+    else:
+        for file in files:
+            mc.file(path + file, i=True)
+
+    return files
+
+
+def surface_from_pointers(pointer_list, scale=1, reverse=False, normal=(1, 0, 0), name=''):
+    """
+    Given a pointer list, creates a curve, and form that creates a surface on the chosen normal direction
+    :param pointer_list:
+    :param scale:
+    :param reverse:
+    :param normal:
+    :param name:
+    :return surface data:
+    """
+    # if flagged, reverse list order
+    if reverse:
+        pointer_list.reverse()
+
+    # query positions
+    position_list = [mc.xform(pointer, q=True, t=True, ws=True) for pointer in pointer_list]
+    # draw curve from pointers
+    loft_base_crv = mc.curve(point=position_list, degree=3, ws=True, name='surface_loft_base_crv')
+    # del history
+    mc.delete(loft_base_crv, ch=True)
+
+    # duplicate curve
+    loft_start_crv = mc.duplicate(loft_base_crv, name='loft_01_crv')
+    loft_end_crv = mc.duplicate(loft_base_crv, name='loft_02_crv')
+    # define offset based on normal and scale
+    offset_value = [normal_axis * value for normal_axis, value in zip(normal, (scale, scale, scale))]
+    offset_flip_value = [(normal_axis * -1) * value for normal_axis, value in zip(normal, (scale, scale, scale))]
+    # offset curves position
+    mc.xform(loft_start_crv, t=offset_value, ws=True)
+    mc.xform(loft_end_crv, t=offset_flip_value, ws=True)
+    # loft curves
+    loft_surface = mc.loft(loft_start_crv, loft_end_crv, ch=False,
+                           u=0, c=0, ar=1, d=3, ss=1, rn=0, po=0, rsn=True,
+                           name='{}_srf'.format(name))
+    # delete guide curves
+    mc.delete(loft_base_crv, loft_start_crv, loft_end_crv)
+
+    return loft_surface
+
+
+def surface_from_pointers_2d(pointer_list, pointers_per_crv=2,
+                             delete_curves=True, reverse=False, name=''):
+    """
+    Given a point list, creates a surface on the chosen normal direction
+    :param pointer_list:
+    :param pointers_per_crv:
+    :param delete_curves:
+    :param reverse:
+    :param name:
+    :return loft surface:
+    """
+
+    curve_pointers = split_list_in_n_chunks(pointer_list, pointers_per_crv)
+    curve_list = []
+
+    for n, curve in enumerate(curve_pointers):
+        pointers_t = []
+
+        for pointer in curve_pointers[n]:
+            t = mc.xform(pointer, q=True, t=True, ws=True)
+            pointers_t.append(t)
+
+        curve = mc.curve(point=pointers_t, degree=3, ws=True,
+                         name='{}_loft_{:02d}_crv'.format(name, n))
+        curve_list.append(curve)
+
+    # if flagged, reverse list order
+    if reverse:
+        curve_list.reverse()
+
+    # loft curves
+    loft_surface = mc.loft(curve_list, ch=False, u=1, c=0, ar=0,
+                           d=3, ss=10, rn=0, po=1, rsn=True,
+                           name='{}_srf'.format(name))
+    # delete guide curves
+    if delete_curves:
+        mc.delete(curve_list)
+
+    return loft_surface
+
+
+def split_list_in_n_chunks(item_list, amount):
+    """
+    Splits a list in equal N chunks. List length must be divisible by N.
+    :param item_list:
+    :param amount:
+    :return chunks dictionary:
+    """
+    # declare use variables
+    item_counter = 1
+    list_counter = 1
+    list_dict = {}
+    chunks_list = []
+
+    # define amount of lists
+    list_amount = len(item_list) / amount
+
+    # create dictionary for lists based on amount
+    for n in range(1, int(list_amount) + 1):
+        list_dict['list_{:02d}'.format(n)] = []
+
+    # append list items evenly in order
+    for item in item_list:
+        list_dict['list_{:02d}'.format(list_counter)].append(item)
+
+        if item_counter == amount:
+            item_counter = 1
+            list_counter += 1
+        else:
+            item_counter += 1
+
+    # append chunks to list in order
+    for n in range(1, len(list_dict.keys())+1):
+        chunks_list.append(list_dict['list_{:02d}'.format(n)])
+
+    return chunks_list
+
+
+# import maya.cmds as cmds
+# import maya.OpenMaya as om
+# import csv
+# import os
+#
+# filepath =  "E:/tpaulino_projects/015_Itsme_Aakash/Female_Shapes/assets/BlendshapeTracks/blendshape_data_1.txt"
+# meshName = 'blendShape4'
+# meshName1 = 'blendShape1'
+# meshName2 = 'blendShape2'
+# prefix = 'exp_'
+#
+# with open(filepath, 'rt') as csvfile:
+#     reader = csv.reader(csvfile, delimiter=',')
+#     header = next(reader)
+#     rowIndex = 0
+#     for row in reader:
+#         cmds.currentTime(int(rowIndex), update=True)
+#         for x in range(0,51):
+#             value = float(row[x])
+#             blendShapeName = header[x]
+#             cmds.setKeyframe(meshName, at=prefix + blendShapeName + "_Mesh", value=value, time=rowIndex)
+#         rowIndex += 1
+
+
+def export_each_selection(folder='', file_name='', extension='obj'):
+    file_type = {
+        'obj': 'OBJexport',
+        'ma': 'Maya ASCII',
+        'mb': 'Maya Binary',
+        'fbx': 'FBX export'
+    }
+
+    selection_list = mc.ls(sl=1)
+    project_path = mc.workspace(q=1, rd=1)
+
+    for item in selection_list:
+        mc.select(item, r=1)
+        file = '{}_{}.{}'.format(file_name, item, extension)
+        mc.file('{}{}/{}'.format(project_path, folder, file),
+                type=file_type[extension], es=1,
+                op="groups=0; ptgroups=0; materials=0; smoothing=1; normals=0")

@@ -1,6 +1,8 @@
 import tpNameConvention as tpName
 import pymel.core as pm
 import maya.cmds as mc
+import json
+import os
 
 """
 DEVELOPMENT
@@ -30,7 +32,7 @@ class Control:
 
         shape = ControlShapeLib()
         # shape.arrow()
-        pass
+        return shape
 
     def transform_match_position(self, target, **kwargs):
         if 't' in kwargs:
@@ -1114,7 +1116,12 @@ class ControlShapeLib:
         self.change_type()
 
     def set_shape_rotate(self, ro=(0, 0, 0)):
-        pass
+        temp_transform = pm.group(name='temp_transform', empty=True)
+        temp_transform.setRotation(ro, ws=True)
+
+        pm.parent(self.transform.listRelatives(shapes=True),
+                  temp_transform, r=True, s=True)
+        transfer_shape_obj(temp_transform, self.transform)
 
     def set_shape_translation(self, t=(0, 0, 0)):
         pass
@@ -1122,14 +1129,62 @@ class ControlShapeLib:
     def set_shape_scale(self, s=(1, 1, 1)):
         pass
 
-    def get_transform(self):
+    def shape_set_position(self, **kwargs):
+        pass
+
+    def shape_match_position(self, target, **kwargs):
+        temp_transform = pm.group(name='temp_transform', empty=True)
+
+        if 't' in kwargs:
+            temp_transform.setTranslation(target.getTranslation(ws=True), ws=True)
+        if 'r' in kwargs:
+            temp_transform.setRotation(target.getRotation(ws=True), ws=True)
+        if 's' in kwargs:
+            temp_transform.setScale(target.getScale())
+
+        pm.parent(self.transform.listRelatives(shapes=True),
+                  temp_transform, r=True, s=True)
+        transfer_shape_obj(temp_transform, self.transform)
+
+    def set_color_red(self):
+        pass
+
+    def set_color_green(self):
+        pass
+
+    def set_color_blue(self):
+        pass
+
+    def set_color_yellow(self):
+        pass
+
+    def set_color_purple(self):
+        pass
+
+    def set_color_rgb(self):
+        pass
+
+    def get_transform_obj(self):
         return self.transform
+
+    def get_transform_name(self):
+        pass
 
     def get_shape_list(self):
         return self.transform.listRelatives(shapes=True)
 
     def get_type_data(self):
         return self.curve_dict[self.shape_type]
+
+    def add_top_grp(self):
+        pass
+
+    def add_offset_grp(self):
+        new_grp = pm.group(n='{}_{}_grp'.format(self.name, self.group_index))
+        pass
+
+    def export_curves_to_json(self):
+        pass
 
 
 def replace_shapes(target_transform_obj, temp_transform_obj):
@@ -1172,6 +1227,36 @@ def transfer_shape(shape, new_parent):
                  worldSpace=True, t=cv_position_list[cv_name])
 
 
+def transfer_shape_obj(temp_transform, target_transform):
+    """
+    Transfers shape to new transform parent maintaining the shape world position
+    :param temp_transform:
+    :param target_transform:
+    :return:
+    """
+    temp_transform_shapes = temp_transform.listRelatives(shapes=True)
+    shapes_data_dict = {}
+
+    # stores all shapes cp translation data
+    for shape in temp_transform_shapes:
+        control_points = pm.getAttr(shape.cp, multiIndices=True)
+        shapes_data_dict[shape] = {'cp': control_points,
+                                   'cp_translate': {}}
+        for cp in shapes_data_dict[shape]['cp']:
+            cp_translate = pm.xform(shape.cp[cp], q=True, t=True, ws=True)
+            shapes_data_dict[shape]['cp_translate'].update({cp: cp_translate})
+
+    # Parent the shapeNode
+    pm.parent(temp_transform_shapes, target_transform, r=True, s=True)
+    pm.delete(temp_transform)
+
+    # Restore shapes world position
+    for shape in temp_transform_shapes:
+        for cp in shapes_data_dict[shape]['cp']:
+            pm.xform(shape.cp[cp], a=True, ws=True,
+                     t=shapes_data_dict[shape]['cp_translate'][cp])
+
+
 def build_curve_from_data(curve_data, name):
     """
     Creates multiple shapes based on data and parents under one curve transform
@@ -1200,6 +1285,17 @@ def build_curve_from_data(curve_data, name):
     pm.select(clear=True)
 
     return output_transform
+
+
+def set_curve_color(curve, color=(1, 1, 1)):
+    shapes = curve.listRelatives(shapes=True)
+
+    for shape in shapes:
+        pm.setAttr(shape.overrideEnabled, 1)
+        pm.setAttr(shape.overrideRGBColors, 1)
+
+        for channel, color in zip('RGB', color):
+            pm.setAttr("{}.overrideColor{}".format(curve, channel), color)
 
 
 def decompose_curve_to_data(target):

@@ -58,6 +58,7 @@ class TpModule(object):
     def pack_and_ship(self):
         for group in self.module_group_dict:
             if self.module_group_dict[group]:
+                pass
 
 
     def __create_module_control_node(self):

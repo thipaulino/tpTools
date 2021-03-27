@@ -1,4 +1,5 @@
 import tpRig.tpModule as mod
+reload(mod)
 import tpRig.tpRigUtils as tpu
 reload(tpu)
 import tpRig.tpNameConvention as tpName
@@ -210,12 +211,11 @@ class TpFaceMuscle(mod.TpModule):
             self.__create_point_on_curve_info_node,
             self.__create_driver_locator,
             self.__create_set_range_node,
-            self.create_control_plug_node,
-            self.__make_control_node_connections,
+            self.__make_module_control_connections,
             self.__build_fk_chain,
             self.__create_ik_spline,
+            self.__create_root_cv_control_cluster,
             self.__create_bind_joint,
-            self.__pack_and_ship,
         ])
 
     # control methods
@@ -270,6 +270,8 @@ class TpFaceMuscle(mod.TpModule):
                               name=self.tpName.build(name=self.module_name + '_path',
                                                      side=self.module_side,
                                                      node_type='curve'))
+        self.curve_list.append(self.curve)
+        self.module_group_dict['curve'].append(self.curve)
 
     def __get_parameter_distribution(self):
         """
@@ -299,10 +301,11 @@ class TpFaceMuscle(mod.TpModule):
         mc.setAttr(self.pci_node + ".parameter", self.parameter_list[0])
         mc.connectAttr(self.pci_node + ".position", self.control_locator + ".t")
 
-        locator_group = mod.TpModuleGroup(name=self.module_name,
-                                          component_type='locator')
-        locator_group.add_item(self.control_locator)
-        self.module_group_list.append(locator_group)
+        # locator_group = mod.TpModuleGroup(name=self.module_name,
+        #                                   component_type='locator')
+        # locator_group.add_item(self.control_locator)
+        # self.module_group_list.append(locator_group)
+        self.module_group_dict['locator'].append(self.control_locator)
 
     def __create_set_range_node(self):
         """
@@ -343,8 +346,21 @@ class TpFaceMuscle(mod.TpModule):
                    maxValue=1)
         mc.addAttr(self.control_plug, longName='metadata', dataType='string')
 
-    def __make_control_node_connections(self):
+    def __make_control_node_connections(self):  # deprecated
         mc.connectAttr(self.control_plug + '.muscle_pull', self.pci_set_range + '.value.valueX')
+        mc.connectAttr(self.pci_set_range + '.outValue.outValueX', self.pci_node + '.parameter')
+
+    def __make_module_control_connections(self):
+        self.control_plug_attribute = 'muscle_pull'
+        mc.addAttr(self.module_top_group,
+                   longName=self.control_plug_attribute,
+                   keyable=True,
+                   attributeType='double',
+                   defaultValue=0,
+                   minValue=0,
+                   maxValue=1)
+
+        mc.connectAttr(self.module_top_group + '.muscle_pull', self.pci_set_range + '.value.valueX')
         mc.connectAttr(self.pci_set_range + '.outValue.outValueX', self.pci_node + '.parameter')
 
     def __build_fk_chain(self):
@@ -356,7 +372,6 @@ class TpFaceMuscle(mod.TpModule):
                                                                               index=n+1,
                                                                               node_type='joint'))
             mc.xform(joint, translation=position, worldSpace=True)
-            # joint = tpu.joint_on_curve_parameter(self.curve, parameter,)
             self.fk_joint_list.append(joint)
 
         tpu.parent_in_list_order(self.fk_joint_list)
@@ -365,6 +380,8 @@ class TpFaceMuscle(mod.TpModule):
         for joint in self.fk_joint_list:
             mc.joint(joint, edit=True, orientJoint="xyz", secondaryAxisOrient="yup",
                      children=True, zeroScaleOrient=True)
+
+        self.module_group_dict['joint'].append(self.fk_joint_list[0])
 
     def __create_ik_spline(self):
         ik_handle_data = mc.ikHandle(startJoint=self.fk_joint_list[0],
@@ -379,11 +396,17 @@ class TpFaceMuscle(mod.TpModule):
                                                                               side=self.module_side,
                                                                               node_type='curve'))
 
+        self.module_group_dict['curve'].append(self.ik_handle_curve)
+        self.module_group_dict['utility'].append(self.ik_handle)
+
+    def __create_root_cv_control_cluster(self):
         self.root_cluster = mc.cluster(self.ik_handle_curve + '.cv[0]',
                                        name=self.tpName.build(name=self.module_name,
                                                               side=self.module_side,
                                                               node_type='cluster'))[1]
         mc.parentConstraint(self.control_locator, self.root_cluster, maintainOffset=False)
+
+        self.module_group_dict['utility'].append(self.root_cluster)
 
     def __create_bind_joint(self):
         """
@@ -399,13 +422,12 @@ class TpFaceMuscle(mod.TpModule):
                                                                                  group=True))
         mc.parentConstraint(self.fk_joint_list[-1], self.bind_joint_group, maintainOffset=False)
 
+        self.module_group_dict['bind_joint'].append(self.bind_joint_group)
+
     def create_groups(self):
         for group in self.module_group_list:
             group.do_group()
             group.parent_under(self.top_group)
-
-    def __pack_and_ship(self):
-        pass
 
 
 """

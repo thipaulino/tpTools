@@ -30,7 +30,9 @@ class NameConvention:
                 'controller': 'controller',
                 'ikHandle': 'ikHdl',
                 'locator': 'loc',
-                'cluster': 'cls'
+                'cluster': 'cls',
+                'utility': 'util',
+                'module': 'mod'
             },
             'side': {
                 'left': 'l',

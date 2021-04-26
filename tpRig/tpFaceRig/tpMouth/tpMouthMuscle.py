@@ -1,20 +1,53 @@
 import tpRig.tpModule as mod
-reload(mod)
 import tpRig.tpRigUtils as tpu
-reload(tpu)
 import tpRig.tpNameConvention as tpName
-reload(tpName)
 import tpVertexCatalogue.tpVertexCatalogue_logic as tpv
 import tpRig.tp2dDistribute as tpDist
 import maya.cmds as mc
+reload(mod)
+
+"""
+DEVELOPMENT PLAN
+- consider creating individual build class for each muscle
+    - avoid complexity on generalizing loop for all muscles
+
+- problem
+    - how to organize cataloged points to create the muscle
+    - how to get points on the right order, given they are in multiple surfaces
+    
+- possible solutions
+    - re work vertex catalog to be vertex centric (vertex as an object containing information)
+    - assemble muscle points individually (a method each) to get correct orders
+        - approach advantage is that all of this could be improved without much loss
+        - keep the muscle set and muscle generic, make vertex catalog better later
+        
+- muscle point dictionary ideal structure
+    - muscle name
+        - point list in built order - start to end
+        - side
+        - joint amount
+        - limit start
+        - limit end
+        
+- action list
+    - 
+    
+
+"""
 
 
 class TpMouthMuscle(mod.TpModule):
 
     def __init__(self):
         super(TpMouthMuscle, self).__init__()
+        """
+        Assembles the entire muscle based system
+        """
 
         self.module_name = 'mouth_muscle'
+        self.skull_base_geo = ''
+        self.jaw_base_geo = ''
+        self.muzzle_base_geo = ''
 
         self.tpName = tpName.NameConvention()
         self.rig_module_root_path = "E:/Scripts/tpTools"
@@ -53,30 +86,35 @@ class TpMouthMuscle(mod.TpModule):
         self.muzzle_vtx_cat = None
         self.master_vtx_cat = {}
 
-    def build(self):
-        pass
+        self.muscle_set_module_object_list = []
 
-    def build_module_surface(self):
-        # enter loop by label
-        #   copy surface from main for each muscle
-        #   store data
-        pass
+        self.module_build_list.extend([
+            self.__assign_catalogue_classes,
+            self.__assemble_skull_rooted_points,
+            self.__assemble_jaw_rooted_points,
+            self.__merge_dictionaries,
+            self.__create_muscle_set_module_list,
+            self.__build_muscle_set_list,
+        ])
 
-    def assign_catalogue_classes(self):
+    def __assign_catalogue_classes(self):
         # get skull vertex cat data
         skull_json_dir = 'tpRig/tpFaceRig/tpMouth/mouthData/tp_skull_vtx_catalogue.json'
         self.skull_vtx_cat = tpv.TpVertexCatalogue()
         self.skull_vtx_cat.import_json_from_dir(skull_json_dir)
+        self.skull_vtx_cat.set_geo(self.skull_base_geo)
 
         # get jaw vertex cat data
         jaw_json_dir = 'tpRig/tpFaceRig/tpMouth/mouthData/tp_jaw_vtx_catalogue.json'
         self.jaw_vtx_cat = tpv.TpVertexCatalogue()
         self.jaw_vtx_cat.import_json_from_dir(jaw_json_dir)
+        self.jaw_vtx_cat.set_geo(self.jaw_base_geo)
 
         # get surface vertex cat data
         muzzle_json_dir = 'tpRig/tpFaceRig/tpMouth/mouthData/tp_muzzleSurface_vtx_catalogue.json'
         self.muzzle_vtx_cat = tpv.TpVertexCatalogue()
         self.muzzle_vtx_cat.import_json_from_dir(muzzle_json_dir)
+        self.muzzle_vtx_cat.set_geo(self.muzzle_base_geo)
 
     def assemble_master_catalogue(self):
         # get only not empty labels in all catalogues
@@ -86,61 +124,98 @@ class TpMouthMuscle(mod.TpModule):
                 if side:
                     pass
 
-    def build_muscle(self):
-        for muscle_name in self.muscle_point_dict:
-            for side in self.muscle_point_dict[muscle_name]:
-                muscle_object = TpFaceMuscle(name=muscle_name, side=side)
-
-                muscle_object.add_point_list(self.muscle_point_dict[muscle_name][side])
-                muscle_object.set_joint_amount(5)
-                muscle_object.set_limit_start(0.6)  # muscle length will be 0.4
-                muscle_object.set_limit_end(1)
-
-                muscle_object.build()
-                self.muscle_object_dict.update({muscle_object.get_module_name(): muscle_object})
-
-    def create_control_hub_node(self):  # consider using module top group
-        """
-        The control node holds the muscle_pull attribute, which will be used
-        to dive the system
-        """
-        self.control_plug = mc.createNode('controller', name=self.tpName.build(name=self.name, side=self.side,
-                                                                               node_type='controller'))
-        self.control_plug_attribute = 'muscle_pull'
-        mc.addAttr(self.control_plug, longName=self.control_plug_attribute, keyable=True,
-                   attributeType='double', defaultValue=0, minValue=0, maxValue=1)
-        mc.addAttr(self.control_plug, longName='metadata', dataType='string')
-
-    def create_hub_attributes(self):
-        for muscle in self.muscle_object_dict:
-            mc.addAttr(self.module_control_node, longName=muscle, keyable=True,
-                       attributeType='double', defaultValue=0, minValue=0, maxValue=1)
-
-    def connect_muscles_to_control_hub(self):
-        for muscle_obj in self.muscle_object_dict.values():
-            name = muscle_obj.get_module_name()
-            muscle_obj.muscle_control_attribute_connect_from('{}.{}'.format(self.module_control_node, name))
-
-    def import_surface_skinning_data(self):  # will be added after built
+    def __assemble_skull_rooted_points(self):
+        # get active dict skull
+        # get active dict muzzle
+        # separate right and left ?
+        # merge dictionaries
+        self.skull_vtx_dict = {}
         pass
 
-    def assign_module_data(self):
+    def __assemble_jaw_rooted_points(self):
+        self.jaw_vtx_dict = {}
+        pass
+
+    def __assemble_exception_points(self):
+        pass
+
+    def __merge_dictionaries(self):
+        self.master_vtx_dict = {}
+        pass
+
+    def __create_muscle_set_module_list(self):
+        for module_name in self.master_vtx_dict:
+            muscle_module_object = TpMuscleSet(name=module_name)
+            self.muscle_set_module_object_list.append(muscle_module_object)
+
+            muscle_module_object.add_surface(self.muzzle_base_geo)
+
+            for muscle_side in self.master_vtx_dict[module_name]:
+                muscle_module_object.add_muscle(
+                    point_list=self.master_vtx_dict[muscle_side],
+                    side=muscle_side,
+                    joint_amount=5,
+                    limit_start=0.6,
+                    limit_end=1)
+
+    def __build_muscle_set_list(self):
+        for muscle_set_module in self.muscle_set_module_object_list:
+            muscle_set_module.build_module()
+
+    def __create_top_group_attributes(self):
+        for muscle in self.muscle_set_module_object_list:
+            mc.addAttr(self.module_control_node,
+                       longName='{muscle_name}_pull'.format(muscle_name=muscle.get_module_name()),
+                       keyable=True,
+                       attributeType='double',
+                       defaultValue=0,
+                       minValue=0,
+                       maxValue=1)
+
+    # def __connect_muscles_to_control_hub(self):
+    #     for muscle_obj in self.muscle_object_dict.values():
+    #         name = muscle_obj.get_module_name()
+    #         muscle_obj.muscle_control_attribute_connect_from('{}.{}'.format(self.module_control_node, name))
+
+    def __assign_module_data(self):
         pass
 
 
 class TpMuscleSet(mod.TpModule):
 
-    def __init__(self, name, side):
+    def __init__(self, name=None, side=None):
+        """
+        Responsible for creating a
+
+        MODULE DEV
+            how to create the control attribute for each module on top group
+            how to register created attributes to be queried
+                how to register attribute type and restrictions
+            should a nodeAttribute class be created to handle this?
+
+        action list
+            resolve how to create and store attributes
+            create function that detects, creates and connects attributes from sub-module
+
+        :param name:
+        :param side:
+        """
         super(TpMuscleSet, self).__init__(name, side)
+
         self.muscle_list = []
-        self.surface = None
+        self.base_surface = None
+        self.module_surface = None
 
-    def build(self):
-        pass
+        self.module_build_list.extend([  # could be done with a super on the method
+            self.__duplicate_surface,
+            self.__build_muscle_list,
+            # self.__create_module_control_attributes,
+            self.__connect_controls
+        ])
 
+    # setup methods
     def add_surface(self, surface):
-        """or duplicate, or has to be provided already"""
-        self.surface = surface
+        self.base_surface = surface
 
     def add_muscle(self, point_list, side, joint_amount, limit_start, limit_end):
         muscle_object = TpFaceMuscle(name=self.module_name, side=side)
@@ -150,15 +225,33 @@ class TpMuscleSet(mod.TpModule):
         muscle_object.set_limit_end(limit_end)
 
         self.muscle_list.append(muscle_object)
+        self.sub_module_list.append(muscle_object)
 
-    def build_muscle_list(self):
+    # build methods
+    def __duplicate_surface(self):
+        self.module_surface = mc.duplicate(self.base_surface, name='')[0]
+
+    def __build_muscle_list(self):
         for muscle in self.muscle_list:
-            muscle.build()
+            muscle.build_module()
 
-    def create_control_node(self):
-        pass
+    # def __create_module_control_attributes(self):
+    #     # for module in list
+    #     #   get module name
+    #     #   get module control attribute names
+    #     #   create division with module name
+    #     #   create attribute with module prefix
+    #
+    #     for muscle in self.muscle_list:
+    #         mc.addAttr(self.module_top_group,
+    #                    longName=None,
+    #                    keyable=True,
+    #                    attributeType='double',
+    #                    defaultValue=0,
+    #                    minValue=0,
+    #                    maxValue=1)
 
-    def connect_controls(self):
+    def __connect_controls(self):
         pass
 
 
@@ -171,7 +264,6 @@ class TpFaceMuscle(mod.TpModule):
         :param name:
         :param side:
         """
-        self.tpName = tpName.NameConvention()
         self.module_name = name
         self.module_side = side
 
@@ -199,28 +291,34 @@ class TpFaceMuscle(mod.TpModule):
         self.pci_node = None  # point on curve info node
         self.pci_set_range = None
 
-        self.module_hub = None
-        self.control_plug = None
-        self.control_plug_attribute = None
-
+        self.muscle_control_attribute = None
         self.control_locator = None  # connected to pci_node, drives ik_handle
 
         self.module_build_list.extend([
-            self.__build_curve,
-            self.__get_parameter_distribution,
-            self.__create_point_on_curve_info_node,
-            self.__create_driver_locator,
-            self.__create_set_range_node,
-            self.__make_module_control_connections,
-            self.__build_fk_chain,
-            self.__create_ik_spline,
-            self.__create_root_cv_control_cluster,
-            self.__create_bind_joint,
+            self._build_curve,
+            self._get_parameter_distribution,
+            self._create_point_on_curve_info_node,
+            self._create_driver_locator,
+            self._create_set_range_node,
+            self._create_module_top_group_attributes,  # new - using object to keep track of attributes
+            self._build_fk_chain,
+            self._create_ik_spline,
+            self._create_root_cv_control_cluster,
+            self._create_bind_joint,
         ])
 
     # control methods
-    def muscle_control_attribute_connect_from(self, in_plug):
-        mc.connectAttr(in_plug, '{node}.{attr}'.format(node=self.control_plug, attr=self.control_plug_attribute))
+    # def muscle_control_attribute_connect_from(self, in_plug):
+    #     mc.connectAttr(in_plug, '{top_group}.{attribute}'.format(top_group=self.module_top_group,
+    #                                                              attribute=self.muscle_control_attribute))
+
+    # def get_control_plug(self):
+    #     return "{top_group}.{attribute}".format(
+    #         top_group=self.module_top_group,
+    #         attribute=self.muscle_control_attribute)
+
+    def get_control_attribute(self):
+        return self.muscle_control_attribute
 
     # setup methods
     def add_point_list(self, point_list):
@@ -244,36 +342,44 @@ class TpFaceMuscle(mod.TpModule):
     def set_joint_radius(self, radius):
         self.joint_radius = radius
 
+    def set_reverse_direction(self):
+        pass
+
     # assemble methods
-    def build(self):
-        self.__build_curve()
-        self.__get_parameter_distribution()
-        self.__create_point_on_curve_info_node()
-        self.__create_driver_locator()
-        self.__create_set_range_node()
-        self.create_control_plug_node()
-        self.__make_control_node_connections()
-        self.__build_fk_chain()
-        self.__create_ik_spline()
-        self.__create_bind_joint()
-        self.__pack_and_ship()
-
-    def create_top_group_node(self):
-        self.top_group = mc.group(empty=True, name=self.tpName.build(name=self.module_name,
-                                                                     side=self.module_side,
-                                                                     group=True))
-
-    def __build_curve(self):
+    def _build_curve(self):
+        """
+        Using the provided point list - Creates a curve on the point list order
+        :return:
+        """
         self.degree = 3 if len(self.point_list) >= 4 else 1
         self.curve = mc.curve(degree=self.degree,
-                              p=self.point_list,
-                              name=self.tpName.build(name=self.module_name + '_path',
-                                                     side=self.module_side,
-                                                     node_type='curve'))
+                              point=self.point_list,
+                              name=self.tp_name.build(name=self.module_name + '_path',
+                                                      side=self.module_side,
+                                                      node_type='curve'))
+
+        curve_shape = mc.listRelatives(self.curve, shapes=1)[0]
+        curve_degree = mc.getAttr(curve_shape + ".degree")
+        curve_spans = mc.getAttr(curve_shape + ".spans")
+
+        # rebuild stage added to guarantee the curve parameter is 0 to 1
+        mc.rebuildCurve(self.curve,
+                        constructionHistory=False,
+                        replaceOriginal=True,
+                        rebuildType=0,  # int - uniform
+                        endKnots=1,  # int - multiple end knots
+                        keepRange=0,  # int - re parameterize the resulting curve from 0 to 1
+                        keepControlPoints=False,
+                        keepEndPoints=True,
+                        keepTangents=True,
+                        spans=curve_spans,
+                        degree=curve_degree,
+                        tolerance=0.01)
+
         self.curve_list.append(self.curve)
         self.module_group_dict['curve'].append(self.curve)
 
-    def __get_parameter_distribution(self):
+    def _get_parameter_distribution(self):
         """
         Given the amount of desired segments on a curve, it will return
         a list of respective parameters
@@ -281,96 +387,73 @@ class TpFaceMuscle(mod.TpModule):
         distribution = tpDist.Tp2dDistribute()
         distribution.set_amount(self.joint_amount)
         distribution.set_limit_start(self.limit_start)  # chain starts in the middle of the curve
+        distribution.set_limit_end(self.limit_end)
+
         self.parameter_list = distribution.get_parameter_list()
 
-    def __create_point_on_curve_info_node(self):
+    def _create_point_on_curve_info_node(self):
         self.pci_node = mc.createNode('pointOnCurveInfo',
-                                      name=self.tpName.build(name=self.module_name,
-                                                             side=self.module_side,
-                                                             node_type='pointOnCurveInfo'))
+                                      name=self.tp_name.build(name=self.module_name,
+                                                              side=self.module_side,
+                                                              node_type='pointOnCurveInfo'))
         mc.connectAttr(self.curve + ".worldSpace", self.pci_node + ".inputCurve")
 
-    def __create_driver_locator(self):
+    def _create_driver_locator(self):
         """
         The locator will slide along the curve using the PCI node
         and pull the root CV on the IK splice curve
         """
-        self.control_locator = mc.spaceLocator(name=self.tpName.build(name=self.module_name,
-                                                                      side=self.module_side,
-                                                                      node_type='locator'))[0]
+        self.control_locator = mc.spaceLocator(name=self.tp_name.build(name=self.module_name,
+                                                                       side=self.module_side,
+                                                                       node_type='locator'))[0]
         mc.setAttr(self.pci_node + ".parameter", self.parameter_list[0])
         mc.connectAttr(self.pci_node + ".position", self.control_locator + ".t")
 
-        # locator_group = mod.TpModuleGroup(name=self.module_name,
-        #                                   component_type='locator')
-        # locator_group.add_item(self.control_locator)
-        # self.module_group_list.append(locator_group)
         self.module_group_dict['locator'].append(self.control_locator)
 
-    def __create_set_range_node(self):
+    def _create_set_range_node(self):
         """
         Remaps the input value from 0 to 1, to the parameter range on the curve
         to create muscle pull
         """
         self.pci_set_range = mc.createNode('setRange',
-                                           name=self.tpName.build(name=self.module_name,
-                                                                  side=self.module_side,
-                                                                  node_type='setRange'))
+                                           name=self.tp_name.build(name=self.module_name,
+                                                                   side=self.module_side,
+                                                                   node_type='setRange'))
         mc.setAttr(self.pci_set_range + '.oldMin.oldMinX', 0)
         mc.setAttr(self.pci_set_range + '.oldMax.oldMaxX', 1)
         mc.setAttr(self.pci_set_range + '.min.minX', self.limit_start)
         mc.setAttr(self.pci_set_range + '.max.maxX', 0)
 
-    def create_control_plug_node(self):
-        """
-        The control node holds the muscle_pull attribute, which will be used
-        to dive the system
-        """
-        self.control_plug = mc.createNode('controller',
-                                          name=self.tpName.build(name=self.module_name,
-                                                                 side=self.module_side,
-                                                                 node_type='controller'))
-        self.control_plug_attribute = 'muscle_pull'
-        mc.addAttr(self.control_plug, longName=self.control_plug_attribute, keyable=True,
-                   attributeType='double', defaultValue=0, minValue=0, maxValue=1)
-        mc.addAttr(self.control_plug, longName='metadata', dataType='string')
-
-    def __add_attribute_to_module_control(self):
-        self.control_plug_attribute = 'muscle_pull'
-        mc.addAttr(self.control_plug,
-                   longName=self.control_plug_attribute,
-                   keyable=True,
-                   attributeType='double',
-                   defaultValue=0,
-                   minValue=0,
-                   maxValue=1)
-        mc.addAttr(self.control_plug, longName='metadata', dataType='string')
-
-    def __make_control_node_connections(self):  # deprecated
-        mc.connectAttr(self.control_plug + '.muscle_pull', self.pci_set_range + '.value.valueX')
+        # connect to point on curve info node
         mc.connectAttr(self.pci_set_range + '.outValue.outValueX', self.pci_node + '.parameter')
 
-    def __make_module_control_connections(self):
-        self.control_plug_attribute = 'muscle_pull'
-        mc.addAttr(self.module_top_group,
-                   longName=self.control_plug_attribute,
-                   keyable=True,
-                   attributeType='double',
-                   defaultValue=0,
-                   minValue=0,
-                   maxValue=1)
+    def _create_module_top_group_attributes(self):
+        self.module_attribute_manager.add_attribute_division('module_ctrl', 'CONTROLS')
 
-        mc.connectAttr(self.module_top_group + '.muscle_pull', self.pci_set_range + '.value.valueX')
-        mc.connectAttr(self.pci_set_range + '.outValue.outValueX', self.pci_node + '.parameter')
+        pull_attribute = self.module_attribute_manager.add_attribute(
+            'muscle_pull',
+            keyable=True,
+            attributeType='double',
+            defaultValue=0,
+            minValue=0,
+            maxValue=1)
 
-    def __build_fk_chain(self):
+        pull_attribute.connect_to(self.pci_set_range + '.value.valueX')
+
+    def _build_fk_chain(self):
+        """
+        Based on defined parameter list, creates joint chain using a curve for position.
+        :return:
+        """
         for n, parameter in enumerate(self.parameter_list):
             position = mc.pointOnCurve(self.curve, parameter=parameter)
             mc.select(clear=True)
-            joint = mc.joint(radius=self.joint_radius, name=self.tpName.build(name=self.module_name,
-                                                                              side=self.module_side,
-                                                                              index=n+1,
-                                                                              node_type='joint'))
+            joint = mc.joint(radius=self.joint_radius,
+                             name=self.tp_name.build(name=self.module_name,
+                                                     side=self.module_side,
+                                                     index=n+1,
+                                                     node_type='joint'))
             mc.xform(joint, translation=position, worldSpace=True)
             self.fk_joint_list.append(joint)
 
@@ -383,151 +466,53 @@ class TpFaceMuscle(mod.TpModule):
 
         self.module_group_dict['joint'].append(self.fk_joint_list[0])
 
-    def __create_ik_spline(self):
+    def _create_ik_spline(self):
         ik_handle_data = mc.ikHandle(startJoint=self.fk_joint_list[0],
                                      endEffector=self.fk_joint_list[-1],
                                      solver="ikSplineSolver",
-                                     name=self.tpName.build(name=self.module_name,
-                                                            side=self.module_side,
-                                                            node_type='ikHandle'))
+                                     name=self.tp_name.build(name=self.module_name,
+                                                             side=self.module_side,
+                                                             node_type='ikHandle'))
         self.ik_handle = ik_handle_data[0]
         self.ik_handle_effector = ik_handle_data[1]
-        self.ik_handle_curve = mc.rename(ik_handle_data[2], self.tpName.build(name=self.module_name + '_ik',
-                                                                              side=self.module_side,
-                                                                              node_type='curve'))
+        self.ik_handle_curve = mc.rename(ik_handle_data[2],
+                                         self.tp_name.build(name=self.module_name + '_ik',
+                                                            side=self.module_side,
+                                                            node_type='curve'))
 
         self.module_group_dict['curve'].append(self.ik_handle_curve)
         self.module_group_dict['utility'].append(self.ik_handle)
 
-    def __create_root_cv_control_cluster(self):
+    def _create_root_cv_control_cluster(self):
+        """
+        The muscle is pulled backwards by a cluster on te first CV
+        on the IK spline curve. This method creates the cluster
+        :return:
+        """
         self.root_cluster = mc.cluster(self.ik_handle_curve + '.cv[0]',
-                                       name=self.tpName.build(name=self.module_name,
-                                                              side=self.module_side,
-                                                              node_type='cluster'))[1]
+                                       name=self.tp_name.build(name=self.module_name,
+                                                               side=self.module_side,
+                                                               node_type='cluster'))[1]
         mc.parentConstraint(self.control_locator, self.root_cluster, maintainOffset=False)
 
         self.module_group_dict['utility'].append(self.root_cluster)
 
-    def __create_bind_joint(self):
+    def _create_bind_joint(self):
         """
         Bind joint will be place and parented to the last joint on the Ik spline
         """
         mc.select(clear=True)
-        self.bind_joint = mc.joint(radius=self.joint_radius, name=self.tpName.build(name=self.module_name,
-                                                                                    side=self.module_side,
-                                                                                    node_type='bind_joint'))
-        self.bind_joint_group = mc.group(self.bind_joint, name=self.tpName.build(name=self.module_name,
-                                                                                 side=self.module_side,
-                                                                                 node_type='bind_joint',
-                                                                                 group=True))
+        self.bind_joint = mc.joint(radius=self.joint_radius,
+                                   name=self.tp_name.build(name=self.module_name,
+                                                           side=self.module_side,
+                                                           index=1,
+                                                           node_type='bind_joint'))
+        self.bind_joint_group = mc.group(self.bind_joint,
+                                         name=self.tp_name.build(name=self.module_name,
+                                                                 side=self.module_side,
+                                                                 index=1,
+                                                                 node_type='bind_joint',
+                                                                 group=True))
         mc.parentConstraint(self.fk_joint_list[-1], self.bind_joint_group, maintainOffset=False)
 
         self.module_group_dict['bind_joint'].append(self.bind_joint_group)
-
-    def create_groups(self):
-        for group in self.module_group_list:
-            group.do_group()
-            group.parent_under(self.top_group)
-
-
-"""
-Getting started 20.01.2021
-
-surface = given
-
-muscles
-    risorius,
-    buccinator,
-    deprAnguli,
-    zygMajor,
-    zygoMinor,
-    levatorAnguli,
-    levatorLabiiSup,
-    levatorLabiiSAN,
-    depressorLabii,
-    levatorNasi,
-    sup_lip_roll,
-    mentalis,
-    pucker
-
-- get skull geo and check
-- catalogue point on muzzle_geo and skull_geo for each muscle
-- repurpose flexiLoft tool for rig application
-- build muscle chains based on vertex reference
-
-- duplicate muzzle_geo for the number of muscles
-- bind chain to its surface
-- import weights
-
-create surface follicles
-create follicle joints
-
-return all created nodes
-
-Action List
-    combine skull geo - PASS
-    make uvs for skull/jaw - DONE
-    export skull_geo for module use 
-    export muzzle_geo for module use 
-
-    catalogue points for each muscle on skull/muzzle - DONE
-    export JSON for module use - DONE
-
-    double check all points for intended use
-        remove points that needs to be averaged
-        leave only points that defines the curve
-
-    create muscle control hub node
-    create curve - DONE
-        create function to create curve from 2 or more input positions
-
-    ## ik spline based muscle approach - DONE
-        create function to distribute joint along curve based on UV - DONE
-        create joints on parameters
-        orient joints 
-        parent joint on fk order
-        turn fk chain into ik spline
-        create locator at end joint position/parameter (muscle bone insertion)
-        parent IK handle to locator
-        create and connect point on curve info (PCI) info node
-        plug in locator to node
-        set parameter to the same as last joint in chain
-        connect PCI node parameter to range retarget (setRange) node
-        connect range retarget to muscle hub
-        create bind joint on same location as first joint in chain
-        top group it
-
-
-    ## single joint on rails approach
-        create point on curve info node(PCI) 
-        connect PCI to curve
-        create locator
-        plug locator to PCI
-        create joint
-        top group joint
-        constraint joint group to locator
-
-
-    # consider template stage to adjust positions manually    
-
-    add skull geo to python module folder
-    add muzzle geo to python module folder
-
-    create locator from point average
-    build curve from two or more points
-
-    flexiloft - repurpose for muscle build
-        build fk chain
-        create ik spline
-
-    skinCluster import/export - repurpose
-
-    setup new clean project 
-        reposition Joaquins head geo to real world metrics
-        same for skull geometry 
-        same for body geometry
-
-
-
-
-"""

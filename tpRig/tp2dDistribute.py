@@ -2,6 +2,11 @@
 class Tp2dDistribute:
 
     def __init__(self):
+        """
+        The distribution is given from 0 to 1, or from the given start limit.
+        Meaning if the start limit is 0.8, the distribution will return a list from 0.8 to 1,
+        divided by the given amount.
+        """
         self.amount = 2
         self.start_limit = 0
         self.end_limit = 1

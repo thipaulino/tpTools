@@ -4,6 +4,7 @@ import tpRig.tpNameConvention as tpName
 import tpVertexCatalogue.tpVertexCatalogue_logic as tpv
 import tpRig.tp2dDistribute as tpDist
 import maya.cmds as mc
+import traceback
 reload(mod)
 
 """
@@ -184,33 +185,33 @@ class TpMouthMuscle(mod.TpModule):
 class TpMuscleSet(mod.TpModule):
 
     def __init__(self, name=None, side=None):
+        super(TpMuscleSet, self).__init__(name, side)
         """
         Responsible for creating a
-
+        
         MODULE DEV
-            how to create the control attribute for each module on top group
-            how to register created attributes to be queried
-                how to register attribute type and restrictions
-            should a nodeAttribute class be created to handle this?
-
+           how to create the control attribute for each module on top group
+           how to register created attributes to be queried
+               how to register attribute type and restrictions
+           should a nodeAttribute class be created to handle this?
+        
         action list
-            resolve how to create and store attributes
-            create function that detects, creates and connects attributes from sub-module
-
+           resolve how to create and store attributes
+           create function that detects, creates and connects attributes from sub-module
+        
         :param name:
         :param side:
         """
-        super(TpMuscleSet, self).__init__(name, side)
 
         self.muscle_list = []
         self.base_surface = None
         self.module_surface = None
 
         self.module_build_list.extend([  # could be done with a super on the method
-            self.__duplicate_surface,
-            self.__build_muscle_list,
-            # self.__create_module_control_attributes,
-            self.__connect_controls
+            self._duplicate_surface,
+            self._build_muscle_list,
+            # self._create_module_control_attributes,
+            self._connect_controls
         ])
 
     # setup methods
@@ -228,14 +229,26 @@ class TpMuscleSet(mod.TpModule):
         self.sub_module_list.append(muscle_object)
 
     # build methods
-    def __duplicate_surface(self):
-        self.module_surface = mc.duplicate(self.base_surface, name='')[0]
+    def _duplicate_surface(self):
+        self.module_surface = mc.duplicate(self.base_surface,
+                                           name=self.tp_name.build(name=self.module_name,
+                                                                   side=self.module_side,
+                                                                   node_type='geometry'))[0]
+        try:
+            mc.parent(self.module_surface, world=True)
+        except RuntimeError as err:
+            print('[{}] Duplicate surface "{}", is already in world space. Proceeding...'.format(
+                err, self.module_surface))
+            print('[Location] {}'.format(traceback.format_exc()))
 
-    def __build_muscle_list(self):
+        self.module_group_dict['rig_geometry'].append(self.module_surface)
+
+    def _build_muscle_list(self):
         for muscle in self.muscle_list:
             muscle.build_module()
+            self.module_group_dict['sub_module'].append(muscle.get_module_top_group())
 
-    # def __create_module_control_attributes(self):
+    # def _create_module_control_attributes(self):
     #     # for module in list
     #     #   get module name
     #     #   get module control attribute names
@@ -251,7 +264,7 @@ class TpMuscleSet(mod.TpModule):
     #                    minValue=0,
     #                    maxValue=1)
 
-    def __connect_controls(self):
+    def _connect_controls(self):
         pass
 
 
@@ -307,16 +320,6 @@ class TpFaceMuscle(mod.TpModule):
             self._create_bind_joint,
         ])
 
-    # control methods
-    # def muscle_control_attribute_connect_from(self, in_plug):
-    #     mc.connectAttr(in_plug, '{top_group}.{attribute}'.format(top_group=self.module_top_group,
-    #                                                              attribute=self.muscle_control_attribute))
-
-    # def get_control_plug(self):
-    #     return "{top_group}.{attribute}".format(
-    #         top_group=self.module_top_group,
-    #         attribute=self.muscle_control_attribute)
-
     def get_control_attribute(self):
         return self.muscle_control_attribute
 
@@ -358,23 +361,25 @@ class TpFaceMuscle(mod.TpModule):
                                                       side=self.module_side,
                                                       node_type='curve'))
 
-        curve_shape = mc.listRelatives(self.curve, shapes=1)[0]
-        curve_degree = mc.getAttr(curve_shape + ".degree")
-        curve_spans = mc.getAttr(curve_shape + ".spans")
+        if len(self.point_list) > 4:
+            # IF statement is necessary because after 5 points curve parameter > 1
+            curve_shape = mc.listRelatives(self.curve, shapes=1)[0]
+            curve_degree = mc.getAttr(curve_shape + ".degree")
+            curve_spans = mc.getAttr(curve_shape + ".spans")
 
-        # rebuild stage added to guarantee the curve parameter is 0 to 1
-        mc.rebuildCurve(self.curve,
-                        constructionHistory=False,
-                        replaceOriginal=True,
-                        rebuildType=0,  # int - uniform
-                        endKnots=1,  # int - multiple end knots
-                        keepRange=0,  # int - re parameterize the resulting curve from 0 to 1
-                        keepControlPoints=False,
-                        keepEndPoints=True,
-                        keepTangents=True,
-                        spans=curve_spans,
-                        degree=curve_degree,
-                        tolerance=0.01)
+            # rebuild stage added to ensure the curve parameter is 0 to 1
+            mc.rebuildCurve(self.curve,
+                            constructionHistory=False,
+                            replaceOriginal=True,
+                            rebuildType=0,  # int - uniform
+                            endKnots=1,  # int - multiple end knots
+                            keepRange=0,  # int - re parameterize the resulting curve from 0 to 1
+                            keepControlPoints=False,
+                            keepEndPoints=True,
+                            keepTangents=True,
+                            spans=curve_spans,
+                            degree=curve_degree,
+                            tolerance=0.01)
 
         self.curve_list.append(self.curve)
         self.module_group_dict['curve'].append(self.curve)
@@ -386,7 +391,7 @@ class TpFaceMuscle(mod.TpModule):
         """
         distribution = tpDist.Tp2dDistribute()
         distribution.set_amount(self.joint_amount)
-        distribution.set_limit_start(self.limit_start)  # chain starts in the middle of the curve
+        distribution.set_limit_start(self.limit_start)
         distribution.set_limit_end(self.limit_end)
 
         self.parameter_list = distribution.get_parameter_list()
@@ -429,10 +434,10 @@ class TpFaceMuscle(mod.TpModule):
         mc.connectAttr(self.pci_set_range + '.outValue.outValueX', self.pci_node + '.parameter')
 
     def _create_module_top_group_attributes(self):
-        self.module_attribute_manager.add_attribute_division('module_ctrl', 'CONTROLS')
+        # self.module_attribute_manager.add_attribute_division('module_ctrl', 'CONTROLS')
 
         pull_attribute = self.module_attribute_manager.add_attribute(
-            'muscle_pull',
+            '_'.join([self.module_side, self.module_name, 'pull']),
             keyable=True,
             attributeType='double',
             defaultValue=0,

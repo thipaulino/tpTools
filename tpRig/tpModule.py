@@ -1,4 +1,5 @@
 import tpRig.tpNameConvention as tpName
+reload(tpName)
 import tpRig.tpNodeAttributeManager as tpAttr
 reload(tpAttr)
 import maya.cmds as mc
@@ -75,7 +76,8 @@ class TpModule(object):
     def build_module(self):
         self.module_build_list.extend([
             self._pack_and_ship,
-            self._create_sub_module_mirror_attributes])
+            self._create_sub_module_mirror_attributes
+        ])
 
         for function in self.module_build_list:
             function()
@@ -124,6 +126,9 @@ class TpModule(object):
     def list_available_data(self):
         pass
 
+    def get_sub_module_top_group_list(self):
+        return [sub_module.get_module_top_group() for sub_module in self.sub_module_list]
+
     def parent_under(self, parent):
         mc.parent(self.module_top_group, parent)
 
@@ -145,13 +150,14 @@ class TpModule(object):
         :return:
         """
         if self.sub_module_list:
-            for sub_module in self.sub_module_list:
+            for n, sub_module in enumerate(self.sub_module_list, 1):
                 # get sub_module naming information
                 sub_module_name = sub_module.get_module_name()
                 sub_module_side = sub_module.get_module_side()
 
                 # add division
-                self.module_attribute_manager.add_division(sub_module_name)  # add module_side
+                self.module_attribute_manager.add_attribute_division('subMod' + str(n),
+                                                                     'subMod' + str(n))
 
                 # get attribute object list
                 sub_module_attribute_manager = sub_module.get_module_attribute_manager()
@@ -159,7 +165,7 @@ class TpModule(object):
 
                 if sub_module_attribute_list:
                     for attribute in sub_module_attribute_list:
-                        # transfer single attribute from sub_module to module
+                        # transfers a single attribute from sub_module to module
                         attribute_name = attribute.get_attribute_name()
                         parameters_dict = attribute.get_parameters_dict()
 
@@ -180,6 +186,9 @@ class TpModule(object):
         pass
 
     def _build_module_attributes(self):
+        pass
+
+    def _lock_and_hide(self):
         pass
 
     def _pack_and_ship(self):

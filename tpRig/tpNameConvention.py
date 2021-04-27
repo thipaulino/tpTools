@@ -24,6 +24,7 @@ class NameConvention:
                 'group': 'grp',
                 'curve': 'crv',
                 'geometry': 'geo',
+                'rig_geometry': 'rig_geo',
                 'follicle': 'flc',
                 'pointOnCurveInfo': 'pci',
                 'setRange': 'setRange',
@@ -32,7 +33,8 @@ class NameConvention:
                 'locator': 'loc',
                 'cluster': 'cls',
                 'utility': 'util',
-                'module': 'mod'
+                'module': 'mod',
+                'sub_module': 'sub_mod'
             },
             'side': {
                 'left': 'l',

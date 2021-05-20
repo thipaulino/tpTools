@@ -1,7 +1,5 @@
 import tpRig.tpNameConvention as tpName
-reload(tpName)
 import tpRig.tpNodeAttributeManager as tpAttr
-reload(tpAttr)
 import maya.cmds as mc
 
 
@@ -69,9 +67,17 @@ class TpModule(object):
         self.parent_joint = None
         self.children_joint = None
 
+        # module attributes
+        self.locator_scale = 0.2
+        self.joint_radius = 0.2
+
+        self.module_pre_build_list = []
+
         self.module_build_list = [
             self._create_module_top_group
         ]
+
+        self.module_post_build_list = []
 
     def build_module(self):
         self.module_build_list.extend([
@@ -144,11 +150,16 @@ class TpModule(object):
 
         self.module_attribute_manager = tpAttr.TpNodeAttributeManager(self.module_top_group)
 
+    def _create_module_top_group_attributes(self):
+        # hard code - create CONTROL division
+        pass
+
     def _create_sub_module_mirror_attributes(self):
         """
         If there are sub_modules on the list, gets attribute managers
         :return:
         """
+        # hard code - create SUB_MODULE division
         if self.sub_module_list:
             for n, sub_module in enumerate(self.sub_module_list, 1):
                 # get sub_module naming information
@@ -156,8 +167,16 @@ class TpModule(object):
                 sub_module_side = sub_module.get_module_side()
 
                 # add division
-                self.module_attribute_manager.add_attribute_division('subMod' + str(n),
-                                                                     'subMod' + str(n))
+                # remove - division being registered and conflicting in top modules
+                # or just do not register the division
+                # self.module_attribute_manager.add_attribute_division('subMod' + str(n),
+                #                                                      'subMod' + str(n))
+                mc.addAttr(sub_module.get_module_top_group(),
+                           longName='subMod' + str(n),
+                           niceName='________',
+                           attributeType='enum',
+                           enumName='subMod' + str(n),
+                           keyable=True)
 
                 # get attribute object list
                 sub_module_attribute_manager = sub_module.get_module_attribute_manager()
@@ -174,8 +193,6 @@ class TpModule(object):
                             **parameters_dict)
 
                         module_attribute.connect_to(attribute.get_node_dot_attribute())
-        else:
-            pass
 
     def _connect_sub_module_attributes(self):
         if self.sub_module_list:
@@ -190,6 +207,18 @@ class TpModule(object):
 
     def _lock_and_hide(self):
         pass
+
+    def _set_module_locator_scale(self):
+        if self.module_group_dict['locator']:
+            for locator in self.module_group_dict['locator']:
+                for axis in 'XYZ':
+                    mc.setAttr('{}.localScale{}'.format(locator, axis), self.locator_scale)
+
+    def _set_module_joint_radius(self):
+        if self.module_group_dict['joint']:
+            for locator in self.module_group_dict['locator']:
+                for axis in 'XYZ':
+                    mc.setAttr('{}.localScale{}'.format(locator, axis), self.locator_scale)
 
     def _pack_and_ship(self):
         """
@@ -208,98 +237,98 @@ class TpModule(object):
         mc.parent(self.module_group_list, self.module_top_group)
 
 
-class TpModuleGroupManager:
-
-    def __init__(self):
-        pass
-
-    def add_group(self):
-        pass
-
-    def get_by_type(self):
-        pass
-
-
-class TpModuleGroup:
-
-    def __init__(self, name, side, component_type):
-        self.group_name = name
-        self.group_side = side
-        self.group_component_type = component_type
-
-        self.item_list = []
-        self.attribute_dict = {}
-        self.attribute_queue_list = []
-
-    def build(self):
-        # do group
-        self.do_group()
-        self.build_attribute_list()
-        # add items
-        # parent under
-        pass
-
-    def do_group(self):
-        pass
-
-    def get_name(self):
-        return self.group_name
-
-    def get_component_type(self):
-        return self.group_component_type
-
-    def set_component_type(self):
-        pass
-
-    def group_type(self):
-        pass
-
-    def add_item(self, item):
-        self.item_list.append(item)
-
-    def add_item_list(self, item_list):
-        self.item_list.extend(item_list)
-
-    def parent_under(self, parent):
-        mc.parent(self.group_name, parent)
-
-    def add_attribute(self):
-        pass
-
-    def build_attribute_list(self):
-        if self.attribute_queue_list:
-            for command in self.attribute_queue_list:
-                exec(command)
-        else:
-            pass
-
-    def add_attribute_boolean(self):
-        pass
-
-    def add_attribute_double(self, long_name, keyable, default_value, min_value, max_value):
-        mc.addAttr(self.group_name,
-                   longName=long_name,
-                   keyable=keyable,
-                   attributeType='double',
-                   defaultValue=default_value,
-                   minValue=min_value,
-                   maxValue=max_value)
-
-        self.attribute_dict.update({long_name: '{group}.{attr}'.format(group=self.group_name, attr=long_name)})
-
-    def add_attribute_float(self):
-        pass
-
-    def add_attribute_sting(self):
-        pass
-
-    def add_attribute_metadata(self):
-        command = 'mc.addAttr({group}, longName="metadata", dataType="string")'.format(group=self.group_name)
-        self.attribute_queue_list.append(command)
-
-    def add_attribute_division(self):
-        pass
-
-    def connect_attribute_from(self, attribute, in_attribute):
-        mc.connectAttr(in_attribute, self.attribute_dict[attribute], force=True)
+# class TpModuleGroupManager:
+#
+#     def __init__(self):
+#         pass
+#
+#     def add_group(self):
+#         pass
+#
+#     def get_by_type(self):
+#         pass
+#
+#
+# class TpModuleGroup:
+#
+#     def __init__(self, name, side, component_type):
+#         self.group_name = name
+#         self.group_side = side
+#         self.group_component_type = component_type
+#
+#         self.item_list = []
+#         self.attribute_dict = {}
+#         self.attribute_queue_list = []
+#
+#     def build(self):
+#         # do group
+#         self.do_group()
+#         self.build_attribute_list()
+#         # add items
+#         # parent under
+#         pass
+#
+#     def do_group(self):
+#         pass
+#
+#     def get_name(self):
+#         return self.group_name
+#
+#     def get_component_type(self):
+#         return self.group_component_type
+#
+#     def set_component_type(self):
+#         pass
+#
+#     def group_type(self):
+#         pass
+#
+#     def add_item(self, item):
+#         self.item_list.append(item)
+#
+#     def add_item_list(self, item_list):
+#         self.item_list.extend(item_list)
+#
+#     def parent_under(self, parent):
+#         mc.parent(self.group_name, parent)
+#
+#     def add_attribute(self):
+#         pass
+#
+#     def build_attribute_list(self):
+#         if self.attribute_queue_list:
+#             for command in self.attribute_queue_list:
+#                 exec(command)
+#         else:
+#             pass
+#
+#     def add_attribute_boolean(self):
+#         pass
+#
+#     def add_attribute_double(self, long_name, keyable, default_value, min_value, max_value):
+#         mc.addAttr(self.group_name,
+#                    longName=long_name,
+#                    keyable=keyable,
+#                    attributeType='double',
+#                    defaultValue=default_value,
+#                    minValue=min_value,
+#                    maxValue=max_value)
+#
+#         self.attribute_dict.update({long_name: '{group}.{attr}'.format(group=self.group_name, attr=long_name)})
+#
+#     def add_attribute_float(self):
+#         pass
+#
+#     def add_attribute_sting(self):
+#         pass
+#
+#     def add_attribute_metadata(self):
+#         command = 'mc.addAttr({group}, longName="metadata", dataType="string")'.format(group=self.group_name)
+#         self.attribute_queue_list.append(command)
+#
+#     def add_attribute_division(self):
+#         pass
+#
+#     def connect_attribute_from(self, attribute, in_attribute):
+#         mc.connectAttr(in_attribute, self.attribute_dict[attribute], force=True)
 

@@ -1,169 +1,211 @@
 import tpRig.tpModule as mod
+reload(mod)
 import tpRig.tpRigUtils as tpu
-import tpRig.tpNameConvention as tpName
 import tpVertexCatalogue.tpVertexCatalogue_logic as tpv
 import tpRig.tp2dDistribute as tpDist
 import maya.cmds as mc
 import traceback
-reload(mod)
 
 """
 DEVELOPMENT PLAN
-- consider creating individual build class for each muscle
-    - avoid complexity on generalizing loop for all muscles
 
-- problem
-    - how to organize cataloged points to create the muscle
-    - how to get points on the right order, given they are in multiple surfaces
-    
-- possible solutions
-    - re work vertex catalog to be vertex centric (vertex as an object containing information)
-    - assemble muscle points individually (a method each) to get correct orders
-        - approach advantage is that all of this could be improved without much loss
-        - keep the muscle set and muscle generic, make vertex catalog better later
-        
-- muscle point dictionary ideal structure
-    - muscle name
-        - point list in built order - start to end
-        - side
-        - joint amount
-        - limit start
-        - limit end
-        
-- action list
-    - 
-    
+Current Issues
+- attribute creation on the top module group is conflicting 
+    - the top module is creating the subModules division
+    - the sub module also have subModule divisions registered
+    - when the top module copies the subModule divisions
+        - the names are the same for the divisions
+        - the code crashes and it is unable to proceed
 
 """
 
 
 class TpMouthMuscle(mod.TpModule):
 
-    def __init__(self):
+    def __init__(self, muzzle_geo, skull_geo, jaw_geo):
         super(TpMouthMuscle, self).__init__()
         """
         Assembles the entire muscle based system
+        - we already have the dictionary with all positions        
         """
 
         self.module_name = 'mouth_muscle'
-        self.skull_base_geo = ''
-        self.jaw_base_geo = ''
-        self.muzzle_base_geo = ''
+        self.skull_base_geo = skull_geo
+        self.jaw_base_geo = jaw_geo
+        self.muzzle_base_geo = muzzle_geo
 
-        self.tpName = tpName.NameConvention()
+        self.muzzle_output_geo = None
+
         self.rig_module_root_path = "E:/Scripts/tpTools"
 
-        self.template_oral_geo = None
-        self.output_oral_geo = None
-        self.output_oral_geo_grp = None
+        # self.template_oral_geo = None
+        # self.output_oral_geo = None
+        # self.output_oral_geo_grp = None
 
-        self.vtx_cat = tpv.TpVertexCatalogue()
-        self.vtx_cat_dict = {}
-        self.vtx_cat_directory = "{}/tpRig/tpFaceRig/tpMouth/mouthData/".format(self.rig_module_root_path)
-        self.vtx_cat_file_name = 'tp_muzzleSurface_vtx_catalogue.json'
-        self.vtx_cat_file_path = '{}{}'.format(self.vtx_cat_directory, self.vtx_cat_file_name)
+        # self.vtx_cat = tpv.TpVertexCatalogue()
+        # self.vtx_cat_dict = {}
+        # self.vtx_cat_directory = "{}/tpRig/tpFaceRig/tpMouth/mouthData/".format(self.rig_module_root_path)
+        # self.vtx_cat_file_name = 'tp_muzzleSurface_vtx_catalogue.json'
+        # self.vtx_cat_file_path = '{}{}'.format(self.vtx_cat_directory, self.vtx_cat_file_name)
 
         self.joint_radius = 0.1
 
-        self.follicle_dict = {}
-        self.joint_dict = {}
+        # self.follicle_dict = {}
+        # self.joint_dict = {}
 
-        self.muscle_list = ['levatorLabiiSuperiorisAN',
-                            'LevatorNasi',
-                            'levatorAnguliOris',
-                            'zygomaticusMinor',
-                            'depressorLabiiInferioris',
-                            'levatorLabiiSuperioris',
-                            'zygomaticusMajor',
-                            'risorius',
-                            'depressorAnguliOris',
-                            'buccinator',
-                            'mentalis']
-        self.muscle_point_dict = {}
-        self.muscle_object_dict = {}
+        # self.muscle_list = [
+        #     'levatorLabiiSuperiorisAN',
+        #     'LevatorNasi',
+        #     'levatorAnguliOris',
+        #     'zygomaticusMinor',
+        #     'depressorLabiiInferioris',
+        #     'levatorLabiiSuperioris',
+        #     'zygomaticusMajor',
+        #     'risorius',
+        #     'depressorAnguliOris',
+        #     'buccinator',
+        #     'mentalis']
+        # self.muscle_point_dict = {}
+        # self.muscle_object_dict = {}
 
         self.skull_vtx_cat = None
+        self.skull_vtx_dict = {}
+
         self.jaw_vtx_cat = None
+        self.jaw_vtx_dict = {}
+
         self.muzzle_vtx_cat = None
-        self.master_vtx_cat = {}
+        self.master_vtx_dict = {}
 
         self.muscle_set_module_object_list = []
 
         self.module_build_list.extend([
-            self.__assign_catalogue_classes,
-            self.__assemble_skull_rooted_points,
-            self.__assemble_jaw_rooted_points,
-            self.__merge_dictionaries,
-            self.__create_muscle_set_module_list,
-            self.__build_muscle_set_list,
+            self._assign_catalogue_classes,
+            self._assemble_skull_rooted_points,
+            self._assemble_jaw_rooted_points,
+            self._create_muscle_set_module_list,
+            self._build_muscle_set_list,
+            self._create_blendshape_node_from_submodules_to_output
         ])
 
-    def __assign_catalogue_classes(self):
+    def add_base_geo(self, muzzle, skull, jaw):
+        self.muzzle_base_geo = muzzle
+        self.skull_base_geo = skull
+        self.jaw_base_geo = jaw
+
+    def _assign_catalogue_classes(self):
+        """
+        This method loads the catalogue data for each of the template geometries
+
+        Current vertex catalogue data structure overview:
+        - the saved .json files are Geometry centric, meaning that we have a
+        file for each of the template geometries
+
+        Each file has the following structure:
+            - muscle name
+                - muscle side
+                    - 3d point list
+
+        The fact that I have to explain it here means that this assembly should
+        probably have it's own class. This could possibly be coming from a template class.
+
+        Or each muscle should have it's own .json file containing:
+            Muscle.json
+                - Geometry
+                    - Side
+                        - 3d point list
+
+        This would also require yet another redesign of the vertex catalogue
+
+        :return:
+        """
+
         # get skull vertex cat data
-        skull_json_dir = 'tpRig/tpFaceRig/tpMouth/mouthData/tp_skull_vtx_catalogue.json'
+        skull_json_dir = '/tpRig/tpFaceRig/tpMouth/mouthData/tp_skull_vtx_catalogue.json'
         self.skull_vtx_cat = tpv.TpVertexCatalogue()
-        self.skull_vtx_cat.import_json_from_dir(skull_json_dir)
+        self.skull_vtx_cat.import_json_from_dir(self.rig_module_root_path + skull_json_dir)
         self.skull_vtx_cat.set_geo(self.skull_base_geo)
 
+        self.skull_vtx_dict = self.skull_vtx_cat.get_active_catalogue_dict_as_points()
+
         # get jaw vertex cat data
-        jaw_json_dir = 'tpRig/tpFaceRig/tpMouth/mouthData/tp_jaw_vtx_catalogue.json'
+        jaw_json_dir = '/tpRig/tpFaceRig/tpMouth/mouthData/tp_jaw_vtx_catalogue.json'
         self.jaw_vtx_cat = tpv.TpVertexCatalogue()
-        self.jaw_vtx_cat.import_json_from_dir(jaw_json_dir)
+        self.jaw_vtx_cat.import_json_from_dir(self.rig_module_root_path + jaw_json_dir)
         self.jaw_vtx_cat.set_geo(self.jaw_base_geo)
 
+        self.jaw_vtx_dict = self.jaw_vtx_cat.get_active_catalogue_dict_as_points()
+
         # get surface vertex cat data
-        muzzle_json_dir = 'tpRig/tpFaceRig/tpMouth/mouthData/tp_muzzleSurface_vtx_catalogue.json'
+        muzzle_json_dir = '/tpRig/tpFaceRig/tpMouth/mouthData/tp_muzzle_vtx_catalogue.json'
         self.muzzle_vtx_cat = tpv.TpVertexCatalogue()
-        self.muzzle_vtx_cat.import_json_from_dir(muzzle_json_dir)
+        self.muzzle_vtx_cat.import_json_from_dir(self.rig_module_root_path + muzzle_json_dir)
         self.muzzle_vtx_cat.set_geo(self.muzzle_base_geo)
 
-    def assemble_master_catalogue(self):
-        # get only not empty labels in all catalogues
-        muzzle_cat = self.muzzle_vtx_cat.get_catalogue()
-        for label in muzzle_cat:
-            for side in muzzle_cat[label]:
-                if side:
-                    pass
+        self.muzzle_vtx_dict = self.muzzle_vtx_cat.get_active_catalogue_dict_as_points()
 
-    def __assemble_skull_rooted_points(self):
-        # get active dict skull
-        # get active dict muzzle
-        # separate right and left ?
-        # merge dictionaries
-        self.skull_vtx_dict = {}
+    def _assemble_skull_rooted_points(self):
+        """
+        - All muscles have a start and end, a 'root'.
+        - All muscles on the face are rooted on the bone, therefore each bone file has only muscle
+        that are rooted on the bone.
+        - Each template bone geo has a .json file, and the muzzle has a .json file.
+        - All muscles ends on the muzzle, therefore the muzzle has them all.
+
+        To assemble the points for a single muscle, we need to:
+        - check the start point of the muscle on the bone file
+        - check for the same muscle on the muzzle file and get the point
+        - add them in this order to the main dictionary under the name of the muscle
+        :return:
+        """
+        for muscle in self.skull_vtx_dict:
+            side_dict = {}
+
+            for side in self.skull_vtx_dict[muscle]:
+                side_dict.update({side: self.skull_vtx_dict[muscle][side] + self.muzzle_vtx_dict[muscle][side]})
+
+            self.master_vtx_dict.update({muscle: side_dict})
+
+    def _assemble_jaw_rooted_points(self):
+        for muscle in self.jaw_vtx_dict:
+            side_dict = {}
+
+            for side in self.jaw_vtx_dict[muscle]:
+                side_dict.update({side: self.jaw_vtx_dict[muscle][side] + self.muzzle_vtx_dict[muscle][side]})
+
+            self.master_vtx_dict.update({muscle: side_dict})
+
+    def _assemble_exception_points(self):
+        # no exceptions so far
         pass
 
-    def __assemble_jaw_rooted_points(self):
-        self.jaw_vtx_dict = {}
-        pass
-
-    def __assemble_exception_points(self):
-        pass
-
-    def __merge_dictionaries(self):
-        self.master_vtx_dict = {}
-        pass
-
-    def __create_muscle_set_module_list(self):
-        for module_name in self.master_vtx_dict:
-            muscle_module_object = TpMuscleSet(name=module_name)
-            self.muscle_set_module_object_list.append(muscle_module_object)
+    def _create_muscle_set_module_list(self):
+        for muscle_name in self.master_vtx_dict:
+            muscle_module_object = TpMuscleSet(name=muscle_name)
+            self.muscle_set_module_object_list.append(muscle_module_object)  # list is pointless
+            self.sub_module_list.append(muscle_module_object)  # change list to module_group_dict
 
             muscle_module_object.add_surface(self.muzzle_base_geo)
 
-            for muscle_side in self.master_vtx_dict[module_name]:
+            for muscle_side in self.master_vtx_dict[muscle_name]:
+                print('[Adding Muscles][{}][{}][{}]'.format(muscle_side,
+                                                            muscle_name,
+                                                            self.master_vtx_dict[muscle_name][muscle_side]))
                 muscle_module_object.add_muscle(
-                    point_list=self.master_vtx_dict[muscle_side],
+                    point_list=self.master_vtx_dict[muscle_name][muscle_side],
                     side=muscle_side,
                     joint_amount=5,
                     limit_start=0.6,
                     limit_end=1)
 
-    def __build_muscle_set_list(self):
+    def _build_muscle_set_list(self):
         for muscle_set_module in self.muscle_set_module_object_list:
+            print('[{}] Building...'.format(muscle_set_module.get_module_name()))
             muscle_set_module.build_module()
+            # add top group to dict to be parented later
+            self.module_group_dict['sub_module'].append(muscle_set_module.get_module_top_group())
 
-    def __create_top_group_attributes(self):
+    def _create_top_group_attributes(self):
         for muscle in self.muscle_set_module_object_list:
             mc.addAttr(self.module_control_node,
                        longName='{muscle_name}_pull'.format(muscle_name=muscle.get_module_name()),
@@ -173,13 +215,13 @@ class TpMouthMuscle(mod.TpModule):
                        minValue=0,
                        maxValue=1)
 
-    # def __connect_muscles_to_control_hub(self):
-    #     for muscle_obj in self.muscle_object_dict.values():
-    #         name = muscle_obj.get_module_name()
-    #         muscle_obj.muscle_control_attribute_connect_from('{}.{}'.format(self.module_control_node, name))
-
-    def __assign_module_data(self):
-        pass
+    def _create_blendshape_node_from_submodules_to_output(self):
+        # get muscle set geometries
+        muscle_set_submodele_geo_list = [sub_module.get_module_surface() for sub_module in self.sub_module_list]
+        self.muzzle_output_geo = mc.duplicate(self.muzzle_base_geo, name=self.tp_name.build(name='muzzle_output',
+                                                                                            node_type='geometry'))[0]
+        self.module_group_dict['geometry'].append(self.muzzle_output_geo)
+        mc.blendShape(muscle_set_submodele_geo_list, self.muzzle_output_geo)
 
 
 class TpMuscleSet(mod.TpModule):
@@ -190,14 +232,14 @@ class TpMuscleSet(mod.TpModule):
         Responsible for creating a
         
         MODULE DEV
-           how to create the control attribute for each module on top group
-           how to register created attributes to be queried
-               how to register attribute type and restrictions
-           should a nodeAttribute class be created to handle this?
-        
+            - resolve attribute unique naming 
+                - attribute has to be unique on the muscle level, or else it will conflict
+                - possible solutions
+                    - Attribute manager will append prefixes to the attribute when creating
+            - what other attributes are necessary for this module?
+            - add attribute method is being added to every class - not inherited
+           
         action list
-           resolve how to create and store attributes
-           create function that detects, creates and connects attributes from sub-module
         
         :param name:
         :param side:
@@ -211,7 +253,6 @@ class TpMuscleSet(mod.TpModule):
             self._duplicate_surface,
             self._build_muscle_list,
             # self._create_module_control_attributes,
-            self._connect_controls
         ])
 
     # setup methods
@@ -225,8 +266,12 @@ class TpMuscleSet(mod.TpModule):
         muscle_object.set_limit_start(limit_start)  # muscle length will be 0.4
         muscle_object.set_limit_end(limit_end)
 
-        self.muscle_list.append(muscle_object)
-        self.sub_module_list.append(muscle_object)
+        self.muscle_list.append(muscle_object)  # redundant
+        self.sub_module_list.append(muscle_object)  # redundant - either one or the other
+
+    # getters
+    def get_module_surface(self):
+        return self.module_surface
 
     # build methods
     def _duplicate_surface(self):
@@ -239,7 +284,7 @@ class TpMuscleSet(mod.TpModule):
         except RuntimeError as err:
             print('[{}] Duplicate surface "{}", is already in world space. Proceeding...'.format(
                 err, self.module_surface))
-            print('[Location] {}'.format(traceback.format_exc()))
+            # print('[Location] {}'.format(traceback.format_exc()))
 
         self.module_group_dict['rig_geometry'].append(self.module_surface)
 
@@ -247,25 +292,6 @@ class TpMuscleSet(mod.TpModule):
         for muscle in self.muscle_list:
             muscle.build_module()
             self.module_group_dict['sub_module'].append(muscle.get_module_top_group())
-
-    # def _create_module_control_attributes(self):
-    #     # for module in list
-    #     #   get module name
-    #     #   get module control attribute names
-    #     #   create division with module name
-    #     #   create attribute with module prefix
-    #
-    #     for muscle in self.muscle_list:
-    #         mc.addAttr(self.module_top_group,
-    #                    longName=None,
-    #                    keyable=True,
-    #                    attributeType='double',
-    #                    defaultValue=0,
-    #                    minValue=0,
-    #                    maxValue=1)
-
-    def _connect_controls(self):
-        pass
 
 
 class TpFaceMuscle(mod.TpModule):
@@ -321,7 +347,7 @@ class TpFaceMuscle(mod.TpModule):
         ])
 
     def get_control_attribute(self):
-        return self.muscle_control_attribute
+        return self.module_attribute_manager.get_attribute_object_list()[0]
 
     # setup methods
     def add_point_list(self, point_list):
@@ -381,7 +407,6 @@ class TpFaceMuscle(mod.TpModule):
                             degree=curve_degree,
                             tolerance=0.01)
 
-        self.curve_list.append(self.curve)
         self.module_group_dict['curve'].append(self.curve)
 
     def _get_parameter_distribution(self):
@@ -472,6 +497,9 @@ class TpFaceMuscle(mod.TpModule):
         self.module_group_dict['joint'].append(self.fk_joint_list[0])
 
     def _create_ik_spline(self):
+        """
+        Creates an IK Spline from first to last created joint chain
+        """
         ik_handle_data = mc.ikHandle(startJoint=self.fk_joint_list[0],
                                      endEffector=self.fk_joint_list[-1],
                                      solver="ikSplineSolver",

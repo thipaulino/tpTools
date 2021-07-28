@@ -71,13 +71,18 @@ class TpModule(object):
         self.locator_scale = 0.2
         self.joint_radius = 0.2
 
-        self.module_pre_build_list = []
+        self.module_pre_build_list = [  # not implemented
+            self._create_module_top_group
+        ]
 
         self.module_build_list = [
             self._create_module_top_group
         ]
 
-        self.module_post_build_list = []
+        self.module_post_build_list = [  # not implemented
+            self._pack_and_ship,
+            self._create_sub_module_mirror_attributes
+        ]
 
     def build_module(self):
         self.module_build_list.extend([
@@ -86,7 +91,22 @@ class TpModule(object):
         ])
 
         for function in self.module_build_list:
+            print('[{}][{}] Starting...'.format(self.__class__.__name__, function.__name__))
             function()
+            print('[{}][{}] Done'.format(self.__class__.__name__, function.__name__))
+
+    def build_module_beta(self):  # not implemented
+        for pre_build_function in self.module_pre_build_list:
+            pre_build_function()
+
+        for build_function in self.module_build_list:
+            build_function()
+
+        for post_build_function in self.module_post_build_list:
+            post_build_function()
+
+    def register_module_build_method(self, method):  # not implemented
+        self.module_build_list.append(method)
 
     def set_name(self, name):
         self.module_name = name
@@ -166,6 +186,7 @@ class TpModule(object):
                 sub_module_name = sub_module.get_module_name()
                 sub_module_side = sub_module.get_module_side()
 
+                # TODO: fix submodule attribute division issue
                 # add division
                 # remove - division being registered and conflicting in top modules
                 # or just do not register the division

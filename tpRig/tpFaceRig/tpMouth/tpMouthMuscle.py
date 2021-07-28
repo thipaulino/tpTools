@@ -5,17 +5,30 @@ import tpVertexCatalogue.tpVertexCatalogue_logic as tpv
 import tpRig.tp2dDistribute as tpDist
 import maya.cmds as mc
 import traceback
+import inspect
 
 """
 DEVELOPMENT PLAN
 
-Current Issues
-- attribute creation on the top module group is conflicting 
-    - the top module is creating the subModules division
-    - the sub module also have subModule divisions registered
-    - when the top module copies the subModule divisions
-        - the names are the same for the divisions
-        - the code crashes and it is unable to proceed
+- add exception muscles
+    - mentalis
+    - lip roll 
+    
+    - outputing the module to the final muzzle output
+    
+    
+    
+'levatorLabiiSuperiorisAN',
+'LevatorNasi',
+'levatorAnguliOris',
+'zygomaticusMinor',
+'depressorLabiiInferioris',
+'levatorLabiiSuperioris',
+'zygomaticusMajor',
+'risorius',
+'depressorAnguliOris',
+'buccinator',
+'mentalis'
 
 """
 
@@ -38,35 +51,7 @@ class TpMouthMuscle(mod.TpModule):
 
         self.rig_module_root_path = "E:/Scripts/tpTools"
 
-        # self.template_oral_geo = None
-        # self.output_oral_geo = None
-        # self.output_oral_geo_grp = None
-
-        # self.vtx_cat = tpv.TpVertexCatalogue()
-        # self.vtx_cat_dict = {}
-        # self.vtx_cat_directory = "{}/tpRig/tpFaceRig/tpMouth/mouthData/".format(self.rig_module_root_path)
-        # self.vtx_cat_file_name = 'tp_muzzleSurface_vtx_catalogue.json'
-        # self.vtx_cat_file_path = '{}{}'.format(self.vtx_cat_directory, self.vtx_cat_file_name)
-
         self.joint_radius = 0.1
-
-        # self.follicle_dict = {}
-        # self.joint_dict = {}
-
-        # self.muscle_list = [
-        #     'levatorLabiiSuperiorisAN',
-        #     'LevatorNasi',
-        #     'levatorAnguliOris',
-        #     'zygomaticusMinor',
-        #     'depressorLabiiInferioris',
-        #     'levatorLabiiSuperioris',
-        #     'zygomaticusMajor',
-        #     'risorius',
-        #     'depressorAnguliOris',
-        #     'buccinator',
-        #     'mentalis']
-        # self.muscle_point_dict = {}
-        # self.muscle_object_dict = {}
 
         self.skull_vtx_cat = None
         self.skull_vtx_dict = {}
@@ -222,6 +207,7 @@ class TpMouthMuscle(mod.TpModule):
                                                                                             node_type='geometry'))[0]
         self.module_group_dict['geometry'].append(self.muzzle_output_geo)
         mc.blendShape(muscle_set_submodele_geo_list, self.muzzle_output_geo)
+        # TODO: set blend shapes target weights to 1
 
 
 class TpMuscleSet(mod.TpModule):
@@ -248,6 +234,7 @@ class TpMuscleSet(mod.TpModule):
         self.muscle_list = []
         self.base_surface = None
         self.module_surface = None
+        self.root_joint = None
 
         self.module_build_list.extend([  # could be done with a super on the method
             self._duplicate_surface,
@@ -258,6 +245,9 @@ class TpMuscleSet(mod.TpModule):
     # setup methods
     def add_surface(self, surface):
         self.base_surface = surface
+
+    def add_root_joint(self, root_joint):  # not implemented
+        self.root_joint = root_joint
 
     def add_muscle(self, point_list, side, joint_amount, limit_start, limit_end):
         muscle_object = TpFaceMuscle(name=self.module_name, side=side)
@@ -275,10 +265,12 @@ class TpMuscleSet(mod.TpModule):
 
     # build methods
     def _duplicate_surface(self):
-        self.module_surface = mc.duplicate(self.base_surface,
-                                           name=self.tp_name.build(name=self.module_name,
-                                                                   side=self.module_side,
-                                                                   node_type='geometry'))[0]
+        self.module_surface = mc.duplicate(
+            self.base_surface,
+            name=self.tp_name.build(
+                name=self.module_name,
+                side=self.module_side,
+                node_type='geometry'))[0]
         try:
             mc.parent(self.module_surface, world=True)
         except RuntimeError as err:
@@ -292,6 +284,13 @@ class TpMuscleSet(mod.TpModule):
         for muscle in self.muscle_list:
             muscle.build_module()
             self.module_group_dict['sub_module'].append(muscle.get_module_top_group())
+
+    def _bind_joints_to_surface(self):
+        for muscle in self.muscle_list:
+            bind_joint = muscle.get_bind_joint()
+
+        # we need a root joint for this method
+        pass
 
 
 class TpFaceMuscle(mod.TpModule):
@@ -348,6 +347,9 @@ class TpFaceMuscle(mod.TpModule):
 
     def get_control_attribute(self):
         return self.module_attribute_manager.get_attribute_object_list()[0]
+
+    def get_bind_joint(self):
+        return self.bind_joint
 
     # setup methods
     def add_point_list(self, point_list):
@@ -548,4 +550,6 @@ class TpFaceMuscle(mod.TpModule):
                                                                  group=True))
         mc.parentConstraint(self.fk_joint_list[-1], self.bind_joint_group, maintainOffset=False)
 
+        # group being appended instead of joint so that
+        # the group gets added to the rig bind joint group
         self.module_group_dict['bind_joint'].append(self.bind_joint_group)

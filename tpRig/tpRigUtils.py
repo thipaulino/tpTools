@@ -1,6 +1,10 @@
 import maya.cmds as mc
+import maya.mel as mel
 import maya.OpenMaya as om
 import maya.api.OpenMaya as om2
+
+import glob
+import json
 
 
 # GENERAL TOOLS
@@ -133,3 +137,158 @@ def create_follicle(input_surface, scale_grp='', u_val=0.5, v_val=0.5, hide=0, n
 
     return follicle
 
+
+def get_geo_vertex_weights(geo_name, skin_cluster, threshold_value=0.001):
+    """
+    Gets the skin percentage in each vertex of the mesh and
+    returns in a dictionary.
+
+    :param geo_name:
+    :param skin_cluster:
+    :param threshold_value:
+    :return:
+    """
+    # remember to filterExpand list before passing it in
+    vertex_dict = {}
+
+    vertex_count = mc.polyEvaluate(geo_name, vertex=True)
+    vertex_list = ['{}.vtx[{}]'.format(geo_name, vertex_id) for vertex_id in range(vertex_count)]
+
+    for vertex in vertex_list:
+        influence_value_list = mc.skinPercent(
+            skin_cluster,
+            vertex,
+            query=True,
+            value=True,
+            ignoreBelow=threshold_value
+        )
+
+        influence_name_list = mc.skinPercent(
+            skin_cluster,
+            vertex,
+            transform=None,
+            query=True,
+            ignoreBelow=threshold_value
+        )
+
+        vertex_dict[vertex] = zip(influence_name_list, influence_value_list)
+
+    return vertex_dict
+
+
+class SkinWeightsManager:
+
+    def __init__(self, dir_path, geo_list):
+        """
+        data structure
+        {mesh:
+            {skin_cluster_name: 'name',
+            influence_list: ['joint1', 'joint2', ...],
+            vertex_influence_dict: {influence(joint): weight, ...}
+
+        :param dir_path:
+        :param geo_list:
+        """
+        self.dir_path = dir_path
+        self.geo_list = geo_list
+        self.file_name = None
+
+        self.file_list_in_path = None
+
+    def import_weights_from_file(self):
+        self.file_list_in_path = glob.glob('{dir}/*.json'.format(dir=self.dir_path))
+
+        # iterate through all skin_weights file in directory
+        for file in self.file_list_in_path:
+            skin_data_dict = read_json_file(file)
+
+            # in the file - go through the data for each mesh
+            for mesh_name in skin_data_dict:
+                skin_cluster_name = skin_data_dict[mesh_name]['skin_cluster_name']
+                influence_list = skin_data_dict[mesh_name]['influence_list']
+                vertex_weights = skin_data_dict[mesh_name]['vertex_weights']
+
+                # bind influences to mesh
+                if not mc.objExists(skin_cluster_name):
+                    mc.skinCluster(influence_list,
+                                   mesh_name,
+                                   name=skin_cluster_name,
+                                   toSelectedBones=True,
+                                   bindMethod=0,
+                                   skinMethod=0,
+                                   normalizeWeights=1)
+
+                set_skin_percentage_from_data(skin_cluster_name, vertex_weights)
+
+    def export_selection_skin_weights(self, file_name):
+        self.file_name = file_name
+
+        # declare main dictionary
+        output_dictionary = {}
+
+        # enter loop geo
+        for geo in self.geo_list:
+            # get skin cluster
+            skin_cluster = mel.eval('findRelatedSkinCluster "{}"'.format(geo))
+            # get all skin cluster influences names
+            skin_cluster_influence_list = mc.skinCluster(skin_cluster, query=True, influence=True)
+            # run get skin weights function
+            geo_weights_dict = get_geo_vertex_weights(geo, skin_cluster)
+
+            # add geo weights to main dictionary
+            output_dictionary.update({geo: {}})
+            output_dictionary[geo].update({'vertex_weights': geo_weights_dict})
+            output_dictionary[geo].update({'influence_list': skin_cluster_influence_list})
+            output_dictionary[geo].update({'skin_cluster_name': skin_cluster})
+
+        # do function export
+        export_dict_as_json(output_dictionary, self.file_name, self.dir_path)
+
+
+def export_selected_geo_weights(data_dict, file_path):
+
+    with open(file_path, 'w') as file_for_write:
+        json.dump(data_dict, file_for_write, indent=4)
+
+
+def export_dict_as_json(data_dict, file_name, dir_path):
+
+    full_path = '{dir}{file}.json'.format(dir=dir_path, file=file_name)
+    print(full_path)
+
+    with open(full_path, 'w') as file_for_write:
+        json.dump(data_dict, file_for_write, indent=4)
+
+
+def set_skin_percentage_from_data(skin_cluster_name, vertex_influence_weight_dict):
+    """
+    Import skin_cluster to individual geo pieces.
+    skin_cluster must exist already.
+
+    :param skin_cluster_name:
+    :param vertex_influence_weight_dict:
+    :return:
+    """
+
+    for vertex in vertex_influence_weight_dict:
+
+        mc.skinPercent(skin_cluster_name,
+                       vertex,
+                       transformValue=vertex_influence_weight_dict[vertex],
+                       zeroRemainingInfluences=True)
+
+        print('Done with {}'.format(vertex))
+
+
+def read_json_file(file_path):
+    """
+    Return dictionary from json file.
+    :param file_path: directory path + file name
+    :return:
+    """
+    try:
+        with open(file_path, 'r') as jsonFile:
+            return json.load(jsonFile)
+
+    except RuntimeError:
+        mc.error("Could not read {0}".format(file_path))

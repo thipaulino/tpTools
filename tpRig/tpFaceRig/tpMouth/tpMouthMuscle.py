@@ -1,5 +1,4 @@
 import tpRig.tpModule as mod
-reload(mod)
 import tpRig.tpRigUtils as tpu
 import tpVertexCatalogue.tpVertexCatalogue_logic as tpv
 import tpRig.tp2dDistribute as tpDist

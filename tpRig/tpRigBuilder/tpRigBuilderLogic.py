@@ -19,7 +19,7 @@ Responsible for building the rig systems
 class TpRigBuilderLogic:
 
     def __init__(self):
-        self.rig_template_obj = tpRigManager.tpRig()
+        self.rig_template_obj = tpRigManager.PostBuildUtils()
 
     def get_buildable_methods(self):
         return self.rig_template_obj.get_registered_build_methods()

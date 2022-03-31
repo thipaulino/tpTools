@@ -60,7 +60,7 @@ def follicle_on_vertex(vtx, flc_name):
     """
     point = mc.xform(vtx, q=1, t=1)
     geo = vtx.split('.')[0]
-    geo_shape = mc.listRelatives(geo, s=True)
+    geo_shape = mc.listRelatives(geo, shapes=True)[0]
 
     uv_value = get_uv_at_point(point, geo)
     follicle = create_follicle(geo_shape, u_val=uv_value[0], v_val=uv_value[1], name=flc_name)
@@ -107,14 +107,14 @@ def create_follicle(input_surface, scale_grp='', u_val=0.5, v_val=0.5, hide=0, n
     follicle_shape = mc.rename(mc.listRelatives(follicle, c=True)[0], (name + 'Shape'))
 
     # If the inputSurface is of type 'nurbsSurface', connect the surface to the follicle
-    if mc.objectType(input_surface[0]) == 'nurbsSurface':
-        mc.connectAttr((input_surface[0] + '.local'), (follicle_shape + '.inputSurface'))
+    if mc.objectType(input_surface) == 'nurbsSurface':
+        mc.connectAttr((input_surface + '.local'), (follicle_shape + '.inputSurface'))
     # If the inputSurface is of type 'mesh', connect the surface to the follicle
-    if mc.objectType(input_surface[0]) == 'mesh':
-        mc.connectAttr((input_surface[0] + '.outMesh'), (follicle_shape + '.inputMesh'))
+    if mc.objectType(input_surface) == 'mesh':
+        mc.connectAttr((input_surface + '.outMesh'), (follicle_shape + '.inputMesh'))
 
     # Connect the worldMatrix of the surface into the follicleShape
-    mc.connectAttr((input_surface[0] + '.worldMatrix[0]'), (follicle_shape + '.inputWorldMatrix'))
+    mc.connectAttr((input_surface + '.worldMatrix[0]'), (follicle_shape + '.inputWorldMatrix'))
     # Connect the follicleShape to it's transform
     mc.connectAttr((follicle_shape + '.outRotate'), (follicle + '.rotate'))
     mc.connectAttr((follicle_shape + '.outTranslate'), (follicle + '.translate'))
@@ -254,7 +254,6 @@ def export_selected_geo_weights(data_dict, file_path):
 def export_dict_as_json(data_dict, file_name, dir_path):
 
     full_path = '{dir}{file}.json'.format(dir=dir_path, file=file_name)
-    print(full_path)
 
     with open(full_path, 'w') as file_for_write:
         json.dump(data_dict, file_for_write, indent=4)
@@ -292,3 +291,163 @@ def read_json_file(file_path):
 
     except RuntimeError:
         mc.error("Could not read {0}".format(file_path))
+
+
+def curve_from_a_to_b(start, end, proxy=False, bind=False, name=''):
+    """
+    Creates 1 linear curve from selection A to selection B
+    :param start:
+    :param end:
+    :param proxy:
+    :param bind:
+    :param name:
+    :return curve:
+    """
+    # get positions
+    end_tr = mc.xform(end, q=True, t=True, ws=True)
+    start_tr = mc.xform(start, q=True, t=True, ws=True)
+    # create curve
+    bridge_curve = mc.curve(d=True, p=[start_tr, end_tr], name='{}_crv'.format(name))
+    mc.delete(bridge_curve, ch=1)
+    bridge_curve_shape = mc.listRelatives(bridge_curve, shapes=True)[0]
+    mc.rename(bridge_curve_shape, bridge_curve + 'Shape')
+
+    if proxy:
+        mc.setAttr("{}.overrideEnabled".format(bridge_curve), 1)
+        mc.setAttr("{}.overrideDisplayType".format(bridge_curve), 1)
+
+    if bind:
+        mc.skinCluster(start, end, bridge_curve,
+                       toSelectedBones=True,
+                       bindMethod=0,
+                       skinMethod=0,
+                       normalizeWeights=1)
+
+    return bridge_curve
+
+
+def surface_from_position_list(position_list, scale=1, reverse=False, normal=(1, 0, 0), name=''):
+    """
+    Given a pointer list, creates a curve, and form that creates a surface on the chosen normal direction
+    :param position_list:
+    :param scale:
+    :param reverse:
+    :param normal:
+    :param name:
+    :return surface data:
+    """
+    # if flagged, reverse list order
+    if reverse:
+        position_list.reverse()
+
+    # draw curve from pointers
+    loft_base_crv = mc.curve(point=position_list, degree=3, ws=True, name='surface_loft_base_crv')
+    # del history
+    mc.delete(loft_base_crv, ch=True)
+
+    # duplicate curve
+    loft_start_crv = mc.duplicate(loft_base_crv, name='loft_01_crv')
+    loft_end_crv = mc.duplicate(loft_base_crv, name='loft_02_crv')
+
+    # define offset based on normal and scale
+    offset_value = [normal_axis * value for normal_axis, value in zip(normal, (scale, scale, scale))]
+    offset_flip_value = [(normal_axis * -1) * value for normal_axis, value in zip(normal, (scale, scale, scale))]
+
+    # offset curves position
+    mc.xform(loft_start_crv, t=offset_value, ws=True)
+    mc.xform(loft_end_crv, t=offset_flip_value, ws=True)
+
+    # loft curves
+    loft_surface = mc.loft(
+        loft_start_crv,
+        loft_end_crv,
+        constructionHistory=False,
+        uniform=0,
+        close=0,
+        autoReverse=1,
+        degree=3,
+        sectionSpans=1,
+        range=0,
+        polygon=0,
+        reverseSurfaceNormals=True,
+        name='{}_srf'.format(name))[0]
+
+    # delete guide curves
+    mc.delete(loft_base_crv, loft_start_crv, loft_end_crv)
+
+    return loft_surface
+
+
+def extract_blend_shape_targets(blend_shape_node, adjustment_targets, model_geometry):
+    # create shapes group
+    group = mc.group(name='shapes_grp', empty=True)
+    shapes_list = []
+
+    # separate target name and weight[index] in two lists
+    target_list = mc.listAttr('{}.w'.format(blend_shape_node), m=1)
+
+    # zero all targets except adjustment
+    for target in target_list:
+        if target not in adjustment_targets:
+            mc.setAttr('{}.{}'.format(blend_shape_node, target), 0)
+
+    # activate each and duplicate
+    for target in target_list:
+        if target not in adjustment_targets:
+            mc.setAttr('{}.{}'.format(blend_shape_node, target), 1)
+            shape = mc.duplicate(model_geometry, n='{}_extract'.format(target))
+            mc.parent(shape, group)
+            shapes_list.append(shape)
+            mc.setAttr('{}.{}'.format(blend_shape_node, target), 0)
+
+    return shapes_list
+
+
+def swap_target_geometry():
+    geometry_list = mc.ls(selection=True)
+
+    for geometry in geometry_list:
+        base_geo_name = geometry.replace('_extract', '')
+        base_geo_parent = mc.listRelatives(base_geo_name, parent=True)
+
+        mc.parent(geometry, base_geo_parent)
+        mc.delete(base_geo_name)
+        mc.rename(geometry, base_geo_name)
+
+
+def rename_blend_shape_targets(blendshape_node, prefix='', suffix='', **kwargs):
+    """
+    Tool for editing blendshape target names
+    :param blendshape_node:
+    :param prefix:
+    :param suffix:
+    :param kwargs: replace=(search, replace)
+    :return:
+    """
+    # get target name, weight[index] list
+    target_weight_list = mc.aliasAttr(blendshape_node, q=True)
+
+    # separate target name and weight[index] in two lists
+    target_list = target_weight_list[::2]
+    weight_list = target_weight_list[1::2]
+    reformat_list = []
+
+    # make replacements in current target name
+    if 'replace' in kwargs:
+        target_list = [item.replace(kwargs['replace'][0], kwargs['replace'][1])
+                       for item in target_list]
+
+    # Add suffix, prefix and join
+    for target in target_list:
+        target_rename_list = [name for name in [prefix, target, suffix] if name]
+        name_join = '_'.join(target_rename_list)
+        reformat_list.append(name_join)
+
+    # rename targets
+    for weight, target in zip(weight_list, reformat_list):
+        try:
+            mc.aliasAttr(target, '{}.{}'.format(blendshape_node, weight))
+        except RuntimeError:
+            print('{} target not affected'.format(target))
+            continue
+

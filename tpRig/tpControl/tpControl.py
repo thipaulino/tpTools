@@ -20,7 +20,7 @@ class ControlShapeLib(object):
         self.name = name
 
         # set shape type
-        self.shape_type = 'cube'
+        self.shape_type = 'cube'  # cube defined by default
 
         # build shape
         self.transform = build_curve_from_data(self.curve_dict[self.shape_type], self.name)
@@ -97,6 +97,10 @@ class ControlShapeLib(object):
 
         for shape in shape_list:
             cv_len = len(mc.getAttr('{}.cp'.format(shape), multiIndices=True))
+            # curve_deg = mc.getAttr('nurbsCircleShape1' + ".degree")
+            # curve_spa = mc.getAttr('nurbsCircleShape1' + ".spans")
+            # # CV's = degrees + spans
+            # cv_len = (curve_deg + curve_spa) - 1
             shape_dict[shape] = []
 
             for cv_index in range(cv_len):
@@ -115,6 +119,13 @@ class ControlShapeLib(object):
         return shape_dict
 
     def store_new_shape_form(self, new_form_name, transform_name):
+        """
+        Note - method not working for closed circle
+        :param new_form_name:
+        :param transform_name:
+        :return:
+        """
+
         mc.delete(self.transform)
         self.transform = transform_name
 
@@ -267,6 +278,14 @@ class Control(ControlShapeLib):
 
         self.offset_grp_list = []
 
+    def cast_control(self):
+        """
+        In future update, creating the control object won't create it immidiatly.
+        Cast control will be used to create the control in the scene, once setup is done.
+        The intention is to implement the idea of loading a control from the scene.
+        :return:
+        """
+
     def control(self):
         """
         :return control name:
@@ -288,6 +307,19 @@ class Control(ControlShapeLib):
         if 's' in kwargs:
             target_scale = mc.xform(target, query=True, scale=True, worldSpace=True)
             mc.xform(self.transform, scale=target_scale, worldSpace=True)
+
+    def top_group_match_position(self, target, **kwargs):
+        if 't' in kwargs:
+            target_translate = mc.xform(target, query=True, translation=True, worldSpace=True)
+            mc.xform(self.offset_grp_list[-1], t=target_translate, worldSpace=True)
+
+        if 'r' in kwargs:
+            target_rotate = mc.xform(target, query=True, rotation=True, worldSpace=True)
+            mc.xform(self.offset_grp_list[-1], rotation=target_rotate, worldSpace=True)
+
+        if 's' in kwargs:
+            target_scale = mc.xform(target, query=True, scale=True, worldSpace=True)
+            mc.xform(self.offset_grp_list[-1], scale=target_scale, worldSpace=True)
 
     def shape_match_position(self, target, **kwargs):
         temp_transform = mc.group(name='temp_transform', empty=True)
@@ -401,6 +433,9 @@ class Control(ControlShapeLib):
 
     def get_offset_grp_list(self):
         return self.offset_grp_list
+
+    def get_top_group(self):
+        return self.offset_grp_list[-1]
 
     def negate_grp(self):
         pass

@@ -199,6 +199,8 @@ class Utilities(Project):
         self.register_build_method('Connect Eye Shapes To Controls', 'Pre-Build Utils',
                                    self.connect_eye_shapes_to_controls)
 
+        self.register_build_method('Create FK Controls', 'Pre-Build Utils', self.create_fk_controls)
+
     # utilities methods
     def load_selection_list(self):
         self.__selection_list = mc.ls(selection=True)
@@ -677,6 +679,41 @@ class Utilities(Project):
                 blend_weights.set(w, i)
 
             fn.setBlendWeights(dag_path, components, blend_weights)
+
+    def create_fk_controls(self):
+        """
+        Select root joint of FK chain and run function.
+        :return:
+        """
+
+        fk_joint_root = mc.ls(sl=1)[0]
+        fk_joint_children = mc.listRelatives(fk_joint_root, allDescendents=True, children=True)
+        fk_joint_list = [fk_joint_root] + fk_joint_children
+
+        control_dict = {}
+        root_ctrl = None
+
+        for jnt in fk_joint_list:
+            ctrl_name = jnt.replace('_jnt', '')
+            control = tpCtrl.Control(name=ctrl_name + '_ctrl')
+
+            control.add_offset_grp()
+            control.top_group_match_position(jnt, t=True, r=True)
+
+            parent_jnt = mc.listRelatives(jnt, parent=True)
+
+            if parent_jnt:
+                parent_control = parent_jnt[0].replace('jnt', 'ctrl')
+                control_dict.update({control: parent_control})
+
+            if not parent_jnt:
+                root_ctrl = control
+
+        for ctrl in control_dict:
+            mc.parent(ctrl.get_top_group(), control_dict[ctrl])
+            ctrl.constraint_target(ctrl.get_name().replace('ctrl', 'jnt'), mo=True)
+
+        root_ctrl.constraint_target(fk_joint_root, mo=True)
 
 
 class tpRig(Utilities):
@@ -1385,6 +1422,11 @@ class PostBuildUtils(tpRig):
         """
         Exports controls shapes based on the control objects that have been created
         during the build process.
+
+        Obs. 14.11.2022 - This feature should be inside of the class, or in a control manager
+        class - Having it outside of the class just makes the system broken, considering that
+        if we had to transfer this function to another project, this feature wouldn't be
+        available.
 
         :return:
         """

@@ -28,7 +28,7 @@ class NeckModule(tpm.RigModule):
 
         # attributes
         self.guide_pointers = pointer_list
-        self.module_scale = scale☺
+        self.module_scale = scale
         self.module_data = {}
 
         self.c1_ctrl_data = {}

@@ -14,7 +14,7 @@
 """
 MOD List
     - Kill rotation on bind joints
-    - Invert controls on the rigth side
+    - Invert controls on the rigth side **
     - Hide system groups
     - Add top/bottom ctrls to single main ctrl group
     - Remove parenting from corner controls
@@ -23,10 +23,10 @@ MOD List
     - Create jaw rig
 
     LIPS SLIDE
-    - Create control for sliding
+    - Create control for sliding **
 
     SURFACE CTRL
-    - Create control
+    - Create control **
     - Build system on surface duplicate
     - Add surface to system group
 
@@ -63,7 +63,12 @@ MOD List
 from __future__ import division
 import maya.OpenMaya as om
 import maya.cmds as cmds
+
 import tpUtils as tpu
+import tpRig.tpControl.tpControl as tpCtrl
+import tpRig.tpRigUtils as tpUtils
+
+import ast
 
 """
 mouth = mouth_system()
@@ -71,48 +76,300 @@ mouth.name = "Mouth"
 mouth.surface = cmds.ls(sl=1)[0]
 mouth.sup_edge_list = cmds.ls(sl=1)
 mouth.inf_edge_list = cmds.ls(sl=1)
+mouth.settings_ctrl_template = cmds.ls(sl=1)
+mouth.mouth_slide_ctrl_template = cmds.ls(sl=1)
+mouth.store_data()
 mouth.build()
 mouth.delete()
 """
 
 
+"""
+Development list for Moonshine project
+
+    ISSUES
+        - control "Mouth_Sup_Lip_01_ctrl" not connected - running free
+        - corner control left - oriented to world, instead of face normal
+        - all joints must be parented to joint hierarchy
+        
+    REQUIREMENTS FOR DEMO
+        - Mouth system with controls
+    
+    SYSTEM FUNCTIONALITY
+        - Eyebrows
+        - Mouth slide
+        - Cheek Puff
+        - Nose 
+            - flair
+            - Raise
+            
+    ACTION LIST - FOCUS ON MINIMUM VIABLE PRODUCT
+        - neck - platisma
+        - lip roll sys
+    
+        - DONE - cheek puff - eyebrow joints - change joint direction - X must point to main movement
+        - DONE - under chin - sub maxilar
+        - DONE - ears
+        - DONE - hide all end joint controls
+        
+        - mouth slide system
+            - fix right corner control joint that is not binded to curve
+                - possible solution - first selected edge seems to be changing directions
+                - rebuild the system based on a cleaner edge selection
+            - add slide control - cluster on low res curves 
+            - slide surface control - add control to move entire surface
+            - * switch control creation to control class in order to change shapes and save reliably
+            - store control objects to change later
+            - joint similar elements for each system - ie. ctrl groups -
+            - add tags to system elements as attributes  
+                    
+        - muscle controls - add null group on top to control via attribute
+            - must be added probably to output joint, not remote
+        - control attribute - create control attribute for all drivable muscles        
+        - change control shapes
+        - add nose flare
+        
+        - create setting control
+            - add control visibility attributes
+            - add face controls attribute
+         
+            
+
+"""
+
+
 class mouth_system():
+
     def __init__(self):
+        self.sys_data = {}
+
         self.name = 'Mouth'
         self.surface = ''
         self.sup_edge_list = []
         self.inf_edge_list = []
-        self.excecuted = False
+        self.executed = False
+
+        self.setting_ctrl_template = None
+        self.mouth_slide_ctrl_template = None
+        self.head_ctrl_template = None
 
         self.attr = {"sys_name": "string",
                      "sys_surface": "string",
                      "sup_edge": "string",
-                     "inf_edge": "string"}
+                     "inf_edge": "string",
+                     "settings_template": "string",
+                     "mouth_slide_template": "string",
+                     "head_ctrl_template": "string"}
 
         if cmds.objExists(self.name + "_BuildPack"):
-            self.buildpack = self.name + "_BuildPack"
+            self.build_pack = self.name + "_BuildPack"
             self.load_data()
         else:
-            self.buildpack = createBuildPack(self.attr, self.name)
+            self.build_pack = createBuildPack(self.attr, self.name)
+
+        # system controls ----
+        self.control_object_dict = {}
+        self.main_face_control = None
+        self.settings_control = None
+        self.mouth_slide_control = None
+        self.surface_control = None
+
+        # system elements ----
+        self.sup_edge_curve = None
+        self.sup_low_res_edge_curve = None
+        self.inf_edge_curve = None
+        self.inf_low_res_edge_curve = None
+
+        self.follicle_list = None
+        self.sup_bind_joint_list = None
+        self.inf_bind_joint_list = None
+        self.sup_control_joint_list = None
+        self.inf_control_joint_list = None
+        self.sup_aim_loc_list = None
+        self.inf_aim_loc_list = None
+
+        self.sys_build_list = [
+            self.create_main_face_control,
+            self.build_stage,
+            self.create_mouth_slide_surface_control,
+            self.build_mouth_slide_control,
+        ]
+
+    def build_face_template(self):
+        pass
 
     def build(self):
+        # self.sys_data = build_mouth_sys(self.sup_edge_list, self.inf_edge_list, self.surface, self.name)
+        # self.executed = True
+
+        for stage in self.sys_build_list:
+            stage()
+
+    def build_stage(self):
         self.sys_data = build_mouth_sys(self.sup_edge_list, self.inf_edge_list, self.surface, self.name)
-        self.excecuted = True
+
+        self.sup_low_res_edge_curve = self.sys_data['sup_lip_sys']['driver_low_res_curve']
+        self.sup_edge_curve = self.sys_data['sup_lip_sys']['edge_extract_curve']
+        self.inf_low_res_edge_curve = self.sys_data['inf_lip_sys']['driver_low_res_curve']
+        self.inf_edge_curve = self.sys_data['inf_lip_sys']['edge_extract_curve']
+
+        self.executed = True
+
+        # sys_data = {
+        #     "main_sys_grp": main_sys_grp,
+        #     "loc_pci_node_list": loc_pci_node_list,
+        #     "driver_wire_node": driver_wire_node,
+        #     "skinCluster_node": skinCluster_node,
+        #     "surface_closestPoint_node_list": surface_sys_data[1],
+        #     "surface_setRange_node_list": surface_sys_data[2],
+        #     "ctrl_list": ctrl_list,
+        #     "ctrl_dict": ctrl_dict,
+        #     "remoteCtrl_dict": remoteCtrl_loc_dict,
+        #     "remoteCtrl_list": remoteCtrl_loc_list
+        # }
 
     def delete(self):
-        if self.excecuted:
+        if self.executed:
             for item in self.sys_data[0]: 
-                try: cmds.delete(self.sys_data[0][item], self.sys_data[1][item])
-                except: pass
+                try:
+                    cmds.delete(self.sys_data[0][item], self.sys_data[1][item])
+                except RuntimeError:
+                    print('[MOUTH SLIDE SYSTEM - DELETE] Nothing found for {} to be deleted'.format(item))
+                    continue
             cmds.delete(self.sys_data[2])
-        else: cmds.warning("System not yet excecuted")
+        else:
+            cmds.warning("[MOUTH SLIDE SYSTEM] System not yet executed")
 
     def load_data(self):
-        mouth_buildPack = "Mouth_BuildPack"
-        self.name = cmds.getAttr(mouth_buildPack + ".sys_name")
-        self.surface = cmds.getAttr(mouth_buildPack + ".sys_surface")
-        self.sup_edge_list = cmds.getAttr(mouth_buildPack + ".sup_edge").split(",")
-        self.inf_edge_list = cmds.getAttr(mouth_buildPack + ".inf_edge").split(",")
+        mouth_build_pack = "Mouth_BuildPack"
+        self.name = cmds.getAttr(mouth_build_pack + ".sys_name")
+        self.surface = cmds.getAttr(mouth_build_pack + ".sys_surface")
+        self.sup_edge_list = ast.literal_eval(cmds.getAttr(mouth_build_pack + ".sup_edge"))
+        self.inf_edge_list = ast.literal_eval(cmds.getAttr(mouth_build_pack + ".inf_edge"))
+        self.mouth_slide_ctrl_template = cmds.getAttr(mouth_build_pack + ".mouth_slide_template")
+        self.setting_ctrl_template = cmds.getAttr(mouth_build_pack + ".settings_template")
+        self.head_ctrl_template = cmds.getAttr(mouth_build_pack + ".head_ctrl_template")
+
+    def store_data(self):
+        cmds.setAttr(self.build_pack + ".sys_name", self.name, type='string')
+        cmds.setAttr(self.build_pack + ".sys_surface", self.surface, type='string')
+        cmds.setAttr(self.build_pack + ".sup_edge", self.sup_edge_list, type='string')
+        cmds.setAttr(self.build_pack + ".inf_edge", self.inf_edge_list, type='string')
+        cmds.setAttr(self.build_pack + ".settings_template", self.setting_ctrl_template, type='string')
+        cmds.setAttr(self.build_pack + ".mouth_slide_template", self.mouth_slide_ctrl_template, type='string')
+        cmds.setAttr(self.build_pack + ".head_ctrl_template", self.head_ctrl_template, type='string')
+
+    # system build actions
+    def create_main_face_control(self):
+        # create control
+        self.main_face_control = tpCtrl.Control(name=self.name + '_main_face_ctrl')
+        # set to circle
+        self.main_face_control.set_type('open_circle')
+        # add top group
+        self.main_face_control.add_offset_grp()
+        # place it at neck position
+        self.main_face_control.top_group_match_position(self.head_ctrl_template, t=True)
+
+        self.control_object_dict.update({self.main_face_control.get_name(): self.main_face_control})
+
+    def create_mouth_slide_surface_control(self):
+        # create cluster
+        cluster_node, cluster_handle = cmds.cluster(self.sup_low_res_edge_curve,
+                                                    self.inf_low_res_edge_curve,
+                                                    self.surface,
+                                                    name='{}_surfaceSys_cls'.format(self.name))
+
+        # create control
+        self.surface_control = tpCtrl.Control(name='{}_offset_ctrl'.format(self.name))
+        self.surface_control.set_type('open_circle')
+        self.surface_control.add_offset_grp()  # top group with no index would be better
+
+        # position control according to template
+        self.surface_control.top_group_match_position(self.mouth_slide_ctrl_template, t=True)
+
+        # connect transformation attributes
+        for attr in ".t,.rotate,.s".split(','):
+            cmds.connectAttr(self.surface_control.get_name() + attr, cluster_handle + attr, force=True)
+
+        cmds.parent(self.surface_control.get_top_group(), self.main_face_control.get_name())
+
+    def build_mouth_slide_control(self):
+        # create cluster
+        cluster_node, cluster_handle = cmds.cluster(self.sup_low_res_edge_curve,
+                                                    self.inf_low_res_edge_curve,
+                                                    name='{}_lipSlide_cls'.format(self.name))
+        # create control
+        self.mouth_slide_control = tpCtrl.Control(name='{}_slide_ctrl'.format(self.name))
+        self.mouth_slide_control.add_offset_grp()  # top group with no index would be better
+
+        # position control according to template
+        self.mouth_slide_control.top_group_match_position(self.mouth_slide_ctrl_template, t=True)
+
+        # connect transformation attributes
+        for attr in ".t,.rotate,.s".split(','):
+            cmds.connectAttr(self.mouth_slide_control.get_name() + attr, cluster_handle + attr, force=True)
+
+        cmds.parent(self.mouth_slide_control.get_top_group(), self.surface_control.get_name())
+
+    def create_setting_control(self):
+        # create control
+        # place it in template location
+        # parent to parent group
+
+        # create control attributes
+
+        # create visibility attributes
+
+        pass
+
+    # def export_control_shapes(self):
+    #     """
+    #     Exports controls shapes based on the control objects that have been created
+    #     during the build process.
+    #
+    #     Obs. 14.11.2022 - This feature should be inside of the class, or in a control manager
+    #     class - Having it outside of the class just makes the system broken, considering that
+    #     if we had to transfer this function to another project, this feature wouldn't be
+    #     available.
+    #
+    #     :return:
+    #     """
+    #
+    #     all_controls_data_dict = {}
+    #
+    #     for control in self.control_object_dict:
+    #         shape_dict = self.control_object_dict[control].get_position_data()
+    #
+    #         control_data = {
+    #             'curve_color': self.control_object_dict[control].get_curve_color(),
+    #             'curve_form': self.control_object_dict[control].get_shape_type(),
+    #             'shape_data': shape_dict
+    #         }
+    #
+    #         all_controls_data_dict.update({control: control_data})
+    #
+    #     tpUtils.export_dict_as_json(all_controls_data_dict,
+    #                                 self.project_data_file_dict['control_shape'],
+    #                                 self.project_dir_dict['control_shape'])
+    #
+    #     print('[File Exported] {}{}.json'.format(self.project_data_file_dict['control_shape'],
+    #                                              self.project_dir_dict['control_shape']))
+    #
+    # def _import_control_shapes(self):
+    #     control_shape_data = tpUtils.read_json_file(
+    #         '{}{}.json'.format(self.project_dir_dict['control_shape'],
+    #                            self.project_data_file_dict['control_shape']))
+    #
+    #     for control in control_shape_data:
+    #         control_type = self.control_object_dict[control].get_shape_type()
+    #
+    #         if control_type != control_shape_data[control]['curve_form']:
+    #             self.control_object_dict[control].set_type(control_shape_data[control]['curve_form'])
+    #
+    #         self.control_object_dict[control].restore_shape_position_from_data(
+    #             control_shape_data[control]['shape_data'])
+    #         self.control_object_dict[control].set_color_rgb(control_shape_data[control]['curve_color'])
+
 
 
 def load_attr(build_pack, attr):
@@ -121,6 +378,17 @@ def load_attr(build_pack, attr):
 
 
 def build_corner(sup_ctrl, inf_ctrl, sup_remoteCtrl, inf_remoteCtrl, name):
+    """
+    Builds mouth corner controls, which brings together sup and inf lip systems.
+    Until this point both systems are independent.
+
+    :param sup_ctrl:
+    :param inf_ctrl:
+    :param sup_remoteCtrl:
+    :param inf_remoteCtrl:
+    :param name:
+    :return:
+    """
     # Get controls and remoteCtrls parent groups
     sup_ctrl_grp = cmds.listRelatives(sup_ctrl, p=1)[0]
     inf_ctrl_grp = cmds.listRelatives(inf_ctrl, p=1)[0]
@@ -130,53 +398,61 @@ def build_corner(sup_ctrl, inf_ctrl, sup_remoteCtrl, inf_remoteCtrl, name):
     # Get superior ctrl translate
     sup_position = cmds.xform(sup_ctrl, q=1, t=1, ws=1)
     sup_rotation = cmds.xform(sup_ctrl, q=1, ro=1, ws=1)
-    
+
     # Get superior ctrl rotation
     inf_position = cmds.xform(inf_ctrl, q=1, t=1, ws=1)
     inf_rotation = cmds.xform(inf_ctrl, q=1, ro=1, ws=1)
-    
+
     # Find mid point between both controls
-    avg_position = [(posA + posB)/2 for posA, posB in zip(sup_position, inf_position)]
-    avg_rotation = [(roA + roB)/2 for roA, roB in zip(sup_rotation, inf_rotation)]
-    
-    # Create corner control and postion acording to calculated position
+    avg_position = [(posA + posB) / 2 for posA, posB in zip(sup_position, inf_position)]
+    avg_rotation = [(roA + roB) / 2 for roA, roB in zip(sup_rotation, inf_rotation)]
+
+    # Create corner control and postion according to calculated position
     corner_ctrl = tpu.build_ctrl(ctrl_type="sphere", name=name + "_Corner", scale=0.3, spaced=1)
     cmds.xform(corner_ctrl['group'], t=avg_position, ro=avg_rotation)
     cmds.parent(sup_ctrl_grp, inf_ctrl_grp, corner_ctrl['control'])
-    
+
     # Create remoteCtrl Locator and position
     corner_remoteCtrl_loc = cmds.spaceLocator(n="{}_RemoteCtrl_Loc".format(name))[0]
     corner_remoteCtrl_grp = cmds.group(n=corner_remoteCtrl_loc + "_Grp")
     cmds.xform(corner_remoteCtrl_grp, t=avg_position, ro=avg_rotation)
     cmds.parent(sup_remoteCtrl_grp, inf_remoteCtrl_grp, corner_remoteCtrl_loc)
-    
+
     # Connect Corner control and remote control Locator
-    for attr in ".t,.rotate,.s".split(','): cmds.connectAttr(corner_ctrl['control'] + attr, corner_remoteCtrl_loc + attr, f=1)
+    for attr in ".t,.rotate,.s".split(','): cmds.connectAttr(corner_ctrl['control'] + attr,
+                                                             corner_remoteCtrl_loc + attr, f=1)
     # Reduce locator scale
-    for dimension in ["X","Y","Z"]: cmds.setAttr("{}.localScale{}".format(corner_remoteCtrl_loc, dimension), 0.4)
+    for dimension in ["X", "Y", "Z"]: cmds.setAttr("{}.localScale{}".format(corner_remoteCtrl_loc, dimension), 0.4)
     # Turn Sup and Inf controls visibility off
     cmds.setAttr(sup_ctrl_grp + ".visibility", 0)
     cmds.setAttr(inf_ctrl_grp + ".visibility", 0)
 
     sys_data = {
-        "corner_ctrl": corner_ctrl, 
+        "corner_ctrl": corner_ctrl,
         "corner_remoteCtrl": corner_remoteCtrl_grp
-        }
+    }
 
     return sys_data
 
 
 def build_surface():
-    """ Satage under development"""
+    """ Stage under development"""
     pass
 
 
 # MAIN FUNCTION SECTION _______________________________________________________________
+
 def build_mouth_sys(sup_edge_list=[], inf_edge_list=[], surface="", name=""):
     """
-    MOD LIST 
-    - Add full sistem ctrl
+    MOD LIST
+    - Add full system ctrl
     - Add control on top of all - pivot on surface center
+
+    :param sup_edge_list:
+    :param inf_edge_list:
+    :param surface:
+    :param name:
+    :return:
     """
     
     # Create independent superior and inferior lip systems
@@ -188,7 +464,8 @@ def build_mouth_sys(sup_edge_list=[], inf_edge_list=[], surface="", name=""):
     # Offset controls position to be in front of lips
     sup_ctrl_dict = sup_lip_sys['ctrl_dict']
     inf_ctrl_dict = inf_lip_sys['ctrl_dict']
-    offset_y = 0.6; offset_z = 0.85
+    offset_y = 0.6
+    offset_z = 0.85
 
     for sup_ctrl, inf_ctrl in zip(sup_ctrl_dict, inf_ctrl_dict):
         sup_position = cmds.xform(sup_ctrl_dict[sup_ctrl], q=1, t=1)
@@ -213,9 +490,17 @@ def build_mouth_sys(sup_edge_list=[], inf_edge_list=[], surface="", name=""):
                                  sup_remoteCtrl=sup_remoteCtrl_list[-1], inf_remoteCtrl=inf_remoteCtrl_list[-1],
                                  name="L_" + name)
 
-    cmds.parent(r_corner_ctrl[1], l_corner_ctrl[1], main_mouth_grp)
+    cmds.parent(
+        r_corner_ctrl['corner_remoteCtrl'],
+        l_corner_ctrl['corner_remoteCtrl'],
+        r_corner_ctrl['corner_ctrl']['group'],
+        l_corner_ctrl['corner_ctrl']['group'],
+        main_mouth_grp)
 
-    return sup_lip_sys, inf_lip_sys, main_mouth_grp
+    return {
+        'sup_lip_sys': sup_lip_sys,
+        'inf_lip_sys': inf_lip_sys,
+        'main_sys_grp': main_mouth_grp}
 
 
 def sysFromEdgeLoop(edge, surface, name=""):
@@ -247,16 +532,16 @@ def sysFromEdgeLoop(edge, surface, name=""):
     driver_wire_node = cmds.wire(anchor_curve, w=driver_crv, gw=False, en=1.000000, ce=0.000000, li=0.000000)
 
     # Create joints on each low res CV
-    cv_postion = getCVAngle(driver_crv)
+    cv_position = getCVAngle(driver_crv)
     driver_jnt_list = []
     ctrl_dict = {}
     ctrl_list = []
     remoteCtrl_loc_dict = {}
     remoteCtrl_loc_list = []
 
-    for n, position in enumerate(cv_postion):
+    for n, position in enumerate(cv_position):
         cmds.select(cl=1)
-        driver_jnt = cmds.joint(rad=0.3 ,n="{}_{:02d}_Ctrl_Jnt".format(name, n))
+        driver_jnt = cmds.joint(rad=0.3, n="{}_{:02d}_Ctrl_Jnt".format(name, n))
         driver_jnt_list.append(driver_jnt)
         cmds.xform(driver_jnt, t=position[0], ro=[0, position[1][1], 0])
 
@@ -268,7 +553,10 @@ def sysFromEdgeLoop(edge, surface, name=""):
 
         # Create remote ctrl locator
         remoteCtrl_loc = cmds.spaceLocator(n="{}_{:02d}_RemoteCtrl_Loc".format(name, n))[0]
-        for i in "X,Y,Z".split(","): cmds.setAttr("{}.localScale{}".format(remoteCtrl_loc, i), 0.3)
+
+        for i in "X,Y,Z".split(","):  # setting scale
+            cmds.setAttr("{}.localScale{}".format(remoteCtrl_loc, i), 0.3)
+
         remoteCtrl_loc_grp = cmds.group(remoteCtrl_loc, n=remoteCtrl_loc + "_Grp")
         remoteCtrl_loc_dict.update({remoteCtrl_loc:remoteCtrl_loc_grp})
         remoteCtrl_loc_list.append(remoteCtrl_loc)
@@ -316,10 +604,13 @@ def sysFromEdgeLoop(edge, surface, name=""):
         "ctrl_list": ctrl_list, 
         "ctrl_dict": ctrl_dict, 
         "remoteCtrl_dict": remoteCtrl_loc_dict,
-        "remoteCtrl_list": remoteCtrl_loc_list
+        "remoteCtrl_list": remoteCtrl_loc_list,
+        'driver_low_res_curve': driver_crv,
+        'edge_extract_curve': anchor_curve
         }
 
     return sys_data
+
 
 """
 Created Nodes
@@ -486,7 +777,7 @@ def getDagPath(objectName):
     selectionList = om.MSelectionList()
     selectionList.add(objectName)
     oNode = om.MDagPath()
-    selectionList.get_dag_path(0, oNode)
+    selectionList.getDagPath(0, oNode)
 
     return oNode
 
@@ -632,7 +923,7 @@ def curvesFromSurface(surface, UorV="v", crvAmount=10, name=""):
 
 def createBuildPack(attr_dict, name):
     container = cmds.container(type="dagContainer", ind=("history", "channels"),
-                                includeHierarchyBelow=1, includeTransform=1, n=name + "_BuildPack")
+                               includeHierarchyBelow=1, includeTransform=1, n=name + "_BuildPack")
 
     options_dict = {
         "float": "cmds.addAttr('{}', ln='{}', at='double', dv=0)".format(container, "--REPLACE--"),

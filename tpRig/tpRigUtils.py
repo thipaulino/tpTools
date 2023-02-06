@@ -451,3 +451,39 @@ def rename_blend_shape_targets(blendshape_node, prefix='', suffix='', **kwargs):
             print('{} target not affected'.format(target))
             continue
 
+
+def import_shapes(folder_path):
+    """
+    Specific to project - Goes though every shape folder and imports shapes
+    Path Structure - main folder / shape folder / OBJ /
+    :param folder_path:
+    :return:
+    """
+    folder_list = glob.glob("{}*".format(folder_path))
+    mesh_list = []
+
+    for folder in folder_list:
+        shape_folder = os.path.basename(os.path.normpath(folder))
+        shape_name = '_'.join(shape_folder.split('_')[1:])
+        file_list = glob.glob('{}/OBJ/*.OBJ'.format(folder))
+        pose_node_list = []
+
+        for file in file_list:
+            node_list = mc.file(
+                file,
+                i=True,
+                type='OBJ',
+                ignoreVersion=True,
+                mergeNamespacesOnClash=False,
+                options='so=0',
+                returnNewNodes=True,
+                removeDuplicateNetworks=True)
+            pose_node_list.extend(node_list)
+
+        mc.group(pose_node_list, name='{}_grp'.format(shape_name))
+        # mesh = mc.listRelatives('grp_{}'.format(shape_name))[0]
+        # mc.rename(mesh, 'geo_{}'.format(shape_name))
+        # mesh_list.append(mesh)
+
+    return mesh_list
+

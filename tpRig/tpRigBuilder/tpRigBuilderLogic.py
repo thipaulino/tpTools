@@ -1,4 +1,4 @@
-import tpRig.tpRigManager as tpRigManager
+import tpRig.tpRigManager_FaceB as tpRigManager
 reload(tpRigManager)
 
 """

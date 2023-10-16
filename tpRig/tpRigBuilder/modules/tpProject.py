@@ -1,18 +1,17 @@
 import os
 import maya.cmds as mc
-import tpRig.tpRigBuilder.tpBuildable as tpBuildable
 import tpRig.tpRigBuilder.tpModule as tpModule
+reload(tpModule)
 
 
-class Project(tpBuildable.Buildable):
+class Project:
 
     def __init__(self):
-        super(Project, self).__init__()
 
         self.__user_input = None
         self.project_root_path = mc.workspace(query=True, rootDirectory=True)
 
-        self.project_dir_dict_list = [  # holds entry order
+        self.project_dir_dict_list = [  # holds entry order | turn this into class attributes
             {'root': self.project_root_path},
 
             {'scripts': os.path.join(self.project_root_path, 'scripts/')},
@@ -53,23 +52,13 @@ class Project(tpBuildable.Buildable):
 
         self.not_found_dir_dict = []
 
-        self.register_build_method('Check Project', self.top_level_item)
-        self.register_build_method('Print All Directory Paths', 'Check Project',
-                                   method=self._print_all_dir_paths)
-        self.register_build_method('Check Directories Existence', 'Check Project',
-                                   method=self._check_existence)
-        self.register_build_method('Prompt User', 'Check Project',
-                                   method=self._prompt_user_about_missing_dir)
-        self.register_build_method('Create Missing Directories', 'Check Project',
-                                   method=self._create_missing_directories)
-
-    def _print_all_dir_paths(self):
+    def print_all_dir_paths(self):
         for dir_data in self.project_dir_dict_list:
             print('[{}] {}'.format(dir_data.keys()[0], dir_data.values()[0]))
 
         print('\n')
 
-    def _check_existence(self):
+    def check_existence(self):
         for dir_data in self.project_dir_dict_list:
             if not os.path.exists(dir_data.values()[0]):
                 self.not_found_dir_dict.append({dir_data.keys()[0]: dir_data.values()[0]})
@@ -79,7 +68,7 @@ class Project(tpBuildable.Buildable):
         if not self.not_found_dir_dict:
             print('\n')
 
-    def _prompt_user_about_missing_dir(self):
+    def prompt_user_about_missing_dir(self):
         missing_dir_name_list = [dir_data.keys()[0] for dir_data in self.not_found_dir_dict]
 
         if missing_dir_name_list:
@@ -93,7 +82,7 @@ class Project(tpBuildable.Buildable):
         else:
             print('[Check Project] No Missing Directories \n')
 
-    def _create_missing_directories(self):
+    def create_missing_directories(self):
         directory_list = [dir_data.values()[0] for dir_data in self.not_found_dir_dict]
 
         if self.__user_input:
@@ -111,4 +100,23 @@ class Project(tpBuildable.Buildable):
 
     def check_for_model_geo(self):
         pass
+
+
+def build_module_object(module_name='Project', parent_action_name='root', background_color=None):
+    project_object = Project()
+
+    project_module_object = tpModule.Module(module_name, parent_action_name, background_color=background_color)
+
+    action_list = [
+        tpModule.Action('Print All Directory Paths', 'Project', method=project_object.print_all_dir_paths),
+        tpModule.Action('Check Directories Existence', 'Project', method=project_object.check_existence),
+        tpModule.Action('Prompt User', 'Project', method=project_object.prompt_user_about_missing_dir),
+        tpModule.Action('Create Missing Directories', 'Project', method=project_object.create_missing_directories)
+    ]
+
+    project_module_object.add_action_list(action_list)
+
+    return project_module_object
+
+
 

@@ -12,6 +12,17 @@ import time
 import tpRig.tpRigBuilder.tpRigBuilderLogic as builderLogic
 reload(builderLogic)
 
+"""
+TO DO LIST
+
+    - Create a folder in the tpRigBuilder directory to hold all of the script variations
+    - The UI will then list all of the modules in the directory, and list in drop down
+    - Once the user chooses, the UI updates the action stack
+    
+    - currently the root of the script is the RigBuilderLogic module  # Which doesn't make much sense tbh
+    - All file paths in the script must be varible - or comeing from a Project class
+"""
+
 
 def maya_main_window():
     """
@@ -26,21 +37,11 @@ class TpRigBuilderUI(QtWidgets.QDialog):
     def __init__(self, parent=maya_main_window()):
         super(TpRigBuilderUI, self).__init__(parent)
 
-        # self.style_sheet = '''
-        #     QTreeWidget {
-        #         font-size: 12pt;
-        #         background: rgba(60,60,60,255);
-        #     }
-        #     QTreeWidget::Item {
-        #         border-bottom:1px solid rgba(50,50,50,255);
-        #         border-top:1px solid rgba(80,80,80,255);
-        #     }
-        #     QHeaderView::section {
-        #         background: rgba(80,80,80,255);
-        #         border: 1px solid rgba(50,50,50,255);
-        #     }
-        #     '''
         self.style_sheet = '''
+            QComboBox {
+                font-size: 10pt;
+                background: rgba(80,80,80,255);   
+            }
             QTreeWidget {
                 font-size: 12pt;
                 background: rgba(60,60,60,255);   
@@ -98,6 +99,13 @@ class TpRigBuilderUI(QtWidgets.QDialog):
 
         self.stop_pixmap = QtGui.QPixmap('E:/Scripts/tpTools/tpRig/tpRigBuilder/images/stop_90_90.png')
         self.progress_pixmap = QtGui.QPixmap('E:/Scripts/tpTools/tpRig/tpRigBuilder/images/progress_90_90.png')
+
+        self.stack_combobox = QtWidgets.QComboBox()
+        self.stack_combobox.setStyleSheet(self.style_sheet)
+        self.stack_pushbutton = QtWidgets.QPushButton('Load')
+        # add logic to get scripts and add to the list
+        # also add logic to reload the different scripts
+        # self.stack_combobox.addItems(['test item'])
 
         self.tree_widget = QtWidgets.QTreeWidget()
         self.tree_widget.installEventFilter(self)
@@ -165,6 +173,12 @@ class TpRigBuilderUI(QtWidgets.QDialog):
         branding_layout.addWidget(self.actionstack_logo)
         branding_layout.addWidget(self.tpaulino_logo, 0, QtCore.Qt.AlignRight)
 
+        stack_dropdown_vbox = QtWidgets.QVBoxLayout()
+        stack_dropdown_hbox = QtWidgets.QHBoxLayout()
+        stack_dropdown_hbox.addWidget(self.stack_combobox, 4)
+        stack_dropdown_hbox.addWidget(self.stack_pushbutton, 1)
+        stack_dropdown_vbox.addLayout(stack_dropdown_hbox)
+
         tree_layout = QtWidgets.QVBoxLayout()
         tree_layout.addWidget(self.builder_label)
         tree_layout.addWidget(self.tree_widget)
@@ -179,8 +193,7 @@ class TpRigBuilderUI(QtWidgets.QDialog):
 
         main_layout = QtWidgets.QVBoxLayout(self)
         main_layout.addLayout(branding_layout)
-        # main_layout.addWidget(self.actionstack_logo)
-        # main_layout.addWidget(self.tpaulino_logo, 0, QtCore.Qt.AlignRight)
+        main_layout.addLayout(stack_dropdown_vbox)
         main_layout.addLayout(tree_layout)
         main_layout.addWidget(self.progress_bar)
         main_layout.addLayout(action_report_layout)
@@ -273,6 +286,8 @@ class TpRigBuilderUI(QtWidgets.QDialog):
 
     def list_all_active_buildable(self, item_list):
         """
+        Recursive method (runs itself)
+
         Purpose: Create a list of active, executable items
         Goes though all items and item children and children children and so on,
         and creates a list of all active items
@@ -390,4 +405,9 @@ class TpRigBuilderUI(QtWidgets.QDialog):
 
             method_data['stop_flag'] = False
             self.buildable_methods_list[method_data_index] = method_data
+
+    def get_stack_scripts_in_folder(self):
+        directory_path = ''
+        file_list = [f for f in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, f))]
+        pass
 

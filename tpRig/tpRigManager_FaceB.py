@@ -1,12 +1,15 @@
 import os
 import glob
 
+import maya.cmds as cmds
+import math
+
 import maya.cmds as mc
 import maya.mel as mel
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaAnim as OpenMayaAnim
 
-# Modules import section
+# modules import section
 import tpControl
 import tpRig.tpFaceRig.tpMouth.tpMouthMuscle as tpMouthMuscle
 import tpRig.tpFaceRig.tpMouth.tpMouthOutput as tpMouthOutput
@@ -31,6 +34,7 @@ class tpRig(tpUtilities.Utilities):
 
         self.skeleton_base_ctrl_object_dict = {}
 
+        # defining all groups in the rig hierarchy
         self.group_hierarchy_dict = {
             'root': 'root',
             'geometry': 'geometry_grp',
@@ -75,8 +79,8 @@ class tpRig(tpUtilities.Utilities):
 
         self.register_build_method('Camera View Fit', self.top_level_item, self._camera_fit_view)
 
-    def get_registered_build_methods(self):
-        return self.build_methods_list
+    # def get_registered_build_methods(self):
+    #     return self.build_methods_list
 
     # SCENE SETUP METHODS ________________________________
 
@@ -294,8 +298,6 @@ class tpRig(tpUtilities.Utilities):
                 mc.connectAttr(user_control.get_name() + attr, control + attr, force=True)
 
             self.control_object_dict.update({user_control.get_name(): user_control})
-
-
 
     def _mouth_slide_build_system(self):
         pass
@@ -757,10 +759,6 @@ Project Development
         - Read build script from local project
         
 """
-
-import maya.cmds as cmds
-import maya.mel as mel
-import math
 
 
 def find_closest_vertex(reference_vertex, vertex_list):

@@ -1,5 +1,10 @@
-import tpRig.tpRigManager_FaceB as tpRigManager
-reload(tpRigManager)
+import tpRig.tpRigBuilder.modules.tpUtilities as tpProject
+reload(tpProject)
+import tpRig.tpRigBuilder.stacks.tpFaceRig as tpFace
+reload(tpFace)
+# import tpRig.tpRigBuilder.tpModule as tpModule
+# import tpRig.tpRigManager_FaceB as tpRigManager
+# reload(tpRigManager)
 
 """
 Responsible for building the rig systems
@@ -19,8 +24,10 @@ Responsible for building the rig systems
 class TpRigBuilderLogic:
 
     def __init__(self):
-        self.rig_template_obj = tpRigManager.PostBuildUtils()
+        # self.rig_template_obj = tpRigManager.PostBuildUtils()
+        self.module_object = tpFace.build_stack()
 
     def get_buildable_methods(self):
-        return self.rig_template_obj.get_registered_build_methods()
+        # return self.rig_template_obj.get_registered_build_methods()
+        return self.module_object.get_action_dict_list()
 

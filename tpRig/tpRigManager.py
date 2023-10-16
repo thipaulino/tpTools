@@ -12,7 +12,7 @@ reload(tpUtils)
 import tpRig.tpControl.tpControl as tpCtrl
 reload(tpCtrl)
 
-# Modules import section
+# modules import section
 import tpRig.tpFaceRig.tpMouth.tpMouthMuscle as tpMouthMuscle
 import tpRig.tpFaceRig.tpMouth.tpMouthOutput as tpMouthOutput
 
@@ -771,7 +771,7 @@ class tpRig(Utilities):
 
         self.register_build_method('Build Mouth Muscle Module', self.top_level_item, self._build_mouth_muscle_module)
         self.register_build_method('Build Mouth Output Module', self.top_level_item, self._build_mouth_output_module)
-        # self.register_build_method('Build Modules', self.top_level_item, self._setup_modules)
+        # self.register_build_method('Build modules', self.top_level_item, self._setup_modules)
 
         self.register_build_method('Import Deformer Weights', self.top_level_item)
         self.register_build_method('Import Model Geo Skin Weights', 'Import Deformer Weights',

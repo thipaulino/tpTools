@@ -24,7 +24,7 @@ class Utilities:
 
     # utilities methods
     def load_selection_list(self):
-        self.__selection_list = mc.ls(selection=True)
+        self.__selection_list = mc.ls(selection=True, flatten=True)
         print(self.__selection_list)
 
     def lead_selection(self):
@@ -548,20 +548,20 @@ def build_module_object(module_name='Utilities', parent_action_name='root', back
 
     action_list = [
         tpModule.Action('Load Selection List', module_name, utils_object.load_selection_list),
-        tpModule.Action('Mirror Joint List', module_name, utils_object.mirror_skeleton_joint_list),
         tpModule.Action('Place Selection in Vertex Average Center', module_name,
                         utils_object.place_in_center_of_vertex_list),
         # tpModule.Action('Import Blend Shapes FBX', 'Pre-Build Utils', utils_object.import_all_shapes),
-        tpModule.Action('Add BlendShape Targets', module_name, utils_object.blend_shape_add_targets),
-        tpModule.Action('Connect BlendShape Controls', module_name, utils_object.connect_blend_shapes_control),
         tpModule.Action('Create Curve From A to B', module_name, utils_object.create_curve_from_a_to_b),
         tpModule.Action('Curve Distribute Tools', module_name),
         tpModule.Action('Load Curve Selection', 'Curve Distribute Tools', utils_object.load_curve_selection),
         tpModule.Action('Distribute Selection On Curve', 'Curve Distribute Tools',
                         utils_object.distribute_items_on_curve),
-        tpModule.Action('Connect Eye Shapes To Controls', module_name,
-                        utils_object.connect_eye_shapes_to_controls),
-        tpModule.Action('Create FK Controls', module_name, utils_object.create_fk_controls)
+        tpModule.Action('Misc Tools', 'Utilities'),
+        tpModule.Action('Create FK Controls', 'Misc Tools', utils_object.create_fk_controls),
+        tpModule.Action('Mirror Joint List', 'Misc Tools', utils_object.mirror_skeleton_joint_list),
+        tpModule.Action('Add BlendShape Targets', 'Misc Tools', utils_object.blend_shape_add_targets),
+        tpModule.Action('Connect BlendShape Controls', 'Misc Tools', utils_object.connect_blend_shapes_control),
+        tpModule.Action('Connect Eye Shapes To Controls', 'Misc Tools', utils_object.connect_eye_shapes_to_controls),
     ]
 
     utils_module_object.add_action_list(action_list)

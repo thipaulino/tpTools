@@ -8,6 +8,8 @@ from PySide2 import QtGui
 from shiboken2 import wrapInstance
 
 import time
+import os
+import importlib
 
 import tpRig.tpRigBuilder.tpRigBuilderLogic as builderLogic
 reload(builderLogic)
@@ -49,6 +51,9 @@ class TpRigBuilderUI(QtWidgets.QDialog):
             QHeaderView::section {
                 background: rgba(80,80,80,255);
                 border: 1px solid rgba(50,50,50,255);
+            }
+            QPushButton {
+                color: rgba(80,80,80,255);
             }
             '''
 
@@ -103,9 +108,12 @@ class TpRigBuilderUI(QtWidgets.QDialog):
         self.stack_combobox = QtWidgets.QComboBox()
         self.stack_combobox.setStyleSheet(self.style_sheet)
         self.stack_pushbutton = QtWidgets.QPushButton('Load')
+        self.stack_pushbutton.setStyleSheet(self.style_sheet)
         # add logic to get scripts and add to the list
         # also add logic to reload the different scripts
-        # self.stack_combobox.addItems(['test item'])
+        directory_path = 'E:/Scripts/tpTools/tpRig/tpRigBuilder/stacks/'
+        file_list = [f for f in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, f)) and not (f.endswith('.pyc') or f == '__init__.py')]
+        self.stack_combobox.addItems(file_list)
 
         self.tree_widget = QtWidgets.QTreeWidget()
         self.tree_widget.installEventFilter(self)
@@ -203,6 +211,7 @@ class TpRigBuilderUI(QtWidgets.QDialog):
         self.tree_widget.itemClicked.connect(self._print_method_docstring)
         # returns item(object), column
         self.tree_widget.itemDoubleClicked.connect(self.call_buildable_from_double_click)
+        self.stack_pushbutton.clicked.connect(self.get_stack_choice)
 
     def _print_method_docstring(self, item):
         """
@@ -410,4 +419,60 @@ class TpRigBuilderUI(QtWidgets.QDialog):
         directory_path = ''
         file_list = [f for f in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, f))]
         pass
+
+    def get_stack_choice(self):
+
+        # Get stack choice from user QtComboBox
+        combobox_selection = self.stack_combobox.currentText()
+
+        # Build module import path from directory path
+        module_name = combobox_selection.split('.')[0]
+        module_path = 'tpRig.tpRigBuilder.stacks.{}'.format(module_name)
+        print(module_path)
+
+        # Import the selected module
+        try:
+            selected_module = importlib.import_module(module_path)
+            reload(selected_module)
+        except ImportError as e:
+            print("Failed to import module: {module_name}".format(module_name=module_name))
+            print(e)
+
+        stack_object = selected_module.build_stack()
+        self.buildable_methods_list = stack_object.get_action_dict_list()
+        self.tree_widget.clear()
+
+        # create all items objects
+        for method_data in self.buildable_methods_list:
+            method_name = method_data['method_name']
+
+            item = QtWidgets.QTreeWidgetItem([method_name])
+            item.setCheckState(0, QtCore.Qt.CheckState.Checked)
+            if method_data['background_color']:
+                item.setBackground(0, QtGui.QBrush(self.qt_color_dict[method_data['background_color']]))
+            # item.setIcon(0, self.logo_pixmap)
+
+            self.item_hierarchy_dict.update({method_name: item})
+
+        # hierarchy setup
+        for index, method_data in enumerate(self.buildable_methods_list):
+            # data digest
+            method_name = method_data['method_name']
+            parent_item_name = method_data['parent']
+            parent_item = self.item_hierarchy_dict[parent_item_name]
+            method = method_data['method']
+            after = method_data['after']
+
+            item = self.item_hierarchy_dict[method_name]
+
+            # if it is the first Item of the list - add as top level item
+            if parent_item_name == 'root':
+                parent_item.addTopLevelItem(item)
+            else:
+                if after:
+                    item_before = self.item_hierarchy_dict[after]
+                    item_before_index = parent_item.indexOfChild(item_before)
+                    parent_item.insertChild(item_before_index + 1, item)
+                else:
+                    parent_item.addChild(item)
 

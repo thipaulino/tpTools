@@ -22,7 +22,7 @@ querying information.
 #   Does it need to restrict to modules?
 
 
-# @dataclass
+# @dataclass  - Dataclasses does not work with the current version of maya (2020) :/
 # class Action:
 #
 #     action_name: str
@@ -161,6 +161,9 @@ class Module:
 
     def add_module(self, module_object):
         self._action_object_list.extend(module_object.action_object_list)
+
+    def add_engine_module_obj(self, engine_object):
+        pass
 
     def get_action_dict_list(self):
         action_dict_list = [action_obj.as_dict() for action_obj in self._action_object_list]

@@ -1,7 +1,9 @@
-import maya.cmds as mc
+import maya.cmds as cmds
 import maya.mel as mel
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaAnim as OpenMayaAnim
+import maya.api.OpenMaya as om2
+import math
 
 import tpRig.tpRigUtils as tpUtils
 reload(tpUtils)
@@ -44,7 +46,7 @@ class Utilities(tpProject.Project):
 
     # utilities methods
     def load_selection_list(self):
-        self.__selection_list = mc.ls(selection=True)
+        self.__selection_list = cmds.ls(selection=True)
         print(self.__selection_list)
 
     def lead_selection(self):
@@ -57,10 +59,10 @@ class Utilities(tpProject.Project):
         """
         if self.__selection_list:
             for joint in self.__selection_list:
-                mc.mirrorJoint(joint,
-                               mirrorYZ=True,
-                               mirrorBehavior=True,
-                               searchReplace=['l_', 'r_'])
+                cmds.mirrorJoint(joint,
+                                 mirrorYZ=True,
+                                 mirrorBehavior=True,
+                                 searchReplace=['l_', 'r_'])
         else:
             print('[mirror_skeleton_joint_list] No Item List Loaded')
 
@@ -75,18 +77,18 @@ class Utilities(tpProject.Project):
         :return Vertex selection average:
         """
         if self.__selection_list:
-            select = mc.filterExpand(self.__selection_list, sm=31)
+            select = cmds.filterExpand(self.__selection_list, sm=31)
             coord_sum = [0, 0, 0]
 
             for i in select:
-                coord = mc.xform(i, q=1, t=1, ws=1)
+                coord = cmds.xform(i, q=1, t=1, ws=1)
                 coord_sum = [axis + axis_query for axis, axis_query in zip(coord_sum, coord)]
 
             coord_avg = [axis / len(select) for axis in coord_sum]
 
-            mc.xform(mc.ls(selection=True)[0],
-                     worldSpace=True,
-                     translation=coord_avg)
+            cmds.xform(cmds.ls(selection=True)[0],
+                       worldSpace=True,
+                       translation=coord_avg)
 
         else:
             print('[mirror_skeleton_joint_list] No Item List Loaded')
@@ -96,7 +98,7 @@ class Utilities(tpProject.Project):
         Load single curve into variable
         :return:
         """
-        self.__curve_selection = mc.ls(selection=True)[0]
+        self.__curve_selection = cmds.ls(selection=True)[0]
 
         print(self.__curve_selection)
 
@@ -108,7 +110,7 @@ class Utilities(tpProject.Project):
         Select two joints(points/objects) and run
         :return:
         """
-        point_a, point_b = mc.ls(selection=True)
+        point_a, point_b = cmds.ls(selection=True)
         curve = tpUtils.curve_from_a_to_b(point_a, point_b, name='temp_a_to_b')
 
         print(curve)
@@ -128,18 +130,18 @@ class Utilities(tpProject.Project):
             print('Please Load Curve Selection')
             return
 
-        items_selection = mc.ls(selection=True)
+        items_selection = cmds.ls(selection=True)
         items_len = len(items_selection)
 
         curve_step = 100 / (items_len - 1.0) / 100
 
         for index, item in enumerate(items_selection):
             current_step = curve_step * index
-            point_on_curve = mc.pointOnCurve(self.__curve_selection,
-                                             parameter=current_step,
-                                             position=True)
+            point_on_curve = cmds.pointOnCurve(self.__curve_selection,
+                                               parameter=current_step,
+                                               position=True)
 
-            mc.xform(item, translation=point_on_curve, worldSpace=True)
+            cmds.xform(item, translation=point_on_curve, worldSpace=True)
 
     def distribute_joints_between_selection(self):
         pass
@@ -155,27 +157,27 @@ class Utilities(tpProject.Project):
         :return:
         """
         blend_shape_geo_grp = 'blend_shape_template_geo_grp'
-        shapes_grp_list = mc.listRelatives(blend_shape_geo_grp, children=True, type='transform')
-        head_model_grp_children = mc.listRelatives(self.head_model_geo_grp, children=True, type='transform')
+        shapes_grp_list = cmds.listRelatives(blend_shape_geo_grp, children=True, type='transform')
+        head_model_grp_children = cmds.listRelatives(self.head_model_geo_grp, children=True, type='transform')
 
         for index, shape_group in enumerate(shapes_grp_list):
-            shape_group_children = mc.listRelatives(shape_group, children=True, type='transform')
+            shape_group_children = cmds.listRelatives(shape_group, children=True, type='transform')
 
             for shape in shape_group_children:
                 for head_element_geo in head_model_grp_children:
                     if head_element_geo in shape:
                         if index == 0:
-                            mc.blendShape(shape, head_element_geo,
-                                          name='{}_blendShape_node'.format(head_element_geo.replace('_geo', '')))
+                            cmds.blendShape(shape, head_element_geo,
+                                            name='{}_blendShape_node'.format(head_element_geo.replace('_geo', '')))
                         else:
-                            item_history_list = mc.listHistory(head_element_geo)
-                            blendshape_node = mc.ls(item_history_list, type='blendShape')[0]
-                            blendshape_weights_list = mc.blendShape(blendshape_node, q=True, weight=True)
+                            item_history_list = cmds.listHistory(head_element_geo)
+                            blendshape_node = cmds.ls(item_history_list, type='blendShape')[0]
+                            blendshape_weights_list = cmds.blendShape(blendshape_node, q=True, weight=True)
                             blendshape_weights_len = len(blendshape_weights_list)
 
-                            mc.blendShape(blendshape_node,
-                                          edit=True,
-                                          target=(head_element_geo,
+                            cmds.blendShape(blendshape_node,
+                                            edit=True,
+                                            target=(head_element_geo,
                                                   blendshape_weights_len,
                                                   shape,
                                                   1.0))
@@ -189,7 +191,7 @@ class Utilities(tpProject.Project):
         :return:
         """
         blendshape_geo_grp = 'blend_shape_template_geo_grp'
-        blendshape_geo_grp_children = mc.listRelatives(blendshape_geo_grp, children=True)
+        blendshape_geo_grp_children = cmds.listRelatives(blendshape_geo_grp, children=True)
         # using the imported blendShape geo grp names to recall pose name
         pose_name_list = [pose_grp.replace('_grp', '') for pose_grp in blendshape_geo_grp_children]
 
@@ -198,11 +200,11 @@ class Utilities(tpProject.Project):
         model_geo = 'head_model_geo'
         model_geo_name_list = model_geo.split('_')
         model_geo_grp = 'head_model_geo_grp'
-        model_geo_grp_children = mc.listRelatives(model_geo_grp, children=True)
+        model_geo_grp_children = cmds.listRelatives(model_geo_grp, children=True)
 
         main_blendshape_node = 'head_model_blendShape_node'
-        main_blendshape_weight_list = mc.blendShape(main_blendshape_node, q=True, weight=True)
-        main_blendshape_target_name_list = [mc.aliasAttr('{}.w[{}]'.format(main_blendshape_node, weight), q=True)
+        main_blendshape_weight_list = cmds.blendShape(main_blendshape_node, q=True, weight=True)
+        main_blendshape_target_name_list = [cmds.aliasAttr('{}.w[{}]'.format(main_blendshape_node, weight), q=True)
                                             for weight in range(len(main_blendshape_weight_list))]
         main_blnd_relationship_dict = {}
 
@@ -233,11 +235,11 @@ class Utilities(tpProject.Project):
         for model_geo_element in model_geo_grp_children:
             if model_geo_element != model_geo:
                 element_name_list = model_geo_element.split('_')
-                element_history_list = mc.listHistory(model_geo_element)
+                element_history_list = cmds.listHistory(model_geo_element)
 
-                blendshape_node = mc.ls(element_history_list, type='blendShape')[0]
-                blendshape_weight_list = mc.blendShape(blendshape_node, q=True, weight=True)
-                blendshape_target_name_list = [mc.aliasAttr('{}.w[{}]'.format(blendshape_node, weight), q=True)
+                blendshape_node = cmds.ls(element_history_list, type='blendShape')[0]
+                blendshape_weight_list = cmds.blendShape(blendshape_node, q=True, weight=True)
+                blendshape_target_name_list = [cmds.aliasAttr('{}.w[{}]'.format(blendshape_node, weight), q=True)
                                                for weight in range(len(blendshape_weight_list))]
 
                 for pose_name in pose_name_list:
@@ -252,8 +254,8 @@ class Utilities(tpProject.Project):
                                     target_name_list.remove(name)
 
                             if not target_name_list:
-                                mc.connectAttr('{}.{}'.format(main_blendshape_node,
-                                                              main_blnd_relationship_dict[pose_name]),
+                                cmds.connectAttr('{}.{}'.format(main_blendshape_node,
+                                                                main_blnd_relationship_dict[pose_name]),
                                                '{}.{}'.format(blendshape_node, target_name), force=True)
 
     def connect_eye_shapes_to_controls(self):
@@ -283,16 +285,16 @@ class Utilities(tpProject.Project):
         for side in 'lr':
             for target in eyes_targets_data_set:
                 # set control rotation to 0
-                mc.setAttr(
+                cmds.setAttr(
                     '{side}_{control}.{attr}'.format(
                         side=side,
                         control=control_name,
                         attr=eyes_targets_data_set[target]['attribute']),
                     0)
                 # set blendShape target weight to 0
-                mc.setAttr('{}.{}_{}'.format(blend_shape_node, side, target), 0)
+                cmds.setAttr('{}.{}_{}'.format(blend_shape_node, side, target), 0)
                 # set first driven key at 0
-                mc.setDrivenKeyframe(
+                cmds.setDrivenKeyframe(
                     '{}.{}_{}'.format(blend_shape_node, side, target),
                     currentDriver='{}_{}.{}'.format(
                         side,
@@ -303,16 +305,16 @@ class Utilities(tpProject.Project):
                 )
 
                 # set control rotation to angle in dictionary
-                mc.setAttr(
+                cmds.setAttr(
                     '{side}_{control}.{attr}'.format(
                         side=side,
                         control=control_name,
                         attr=eyes_targets_data_set[target]['attribute']),
                     eyes_targets_data_set[target]['angle'])
                 # set blendShape target to 1
-                mc.setAttr('{}.{}_{}'.format(blend_shape_node, side, target), 1)
+                cmds.setAttr('{}.{}_{}'.format(blend_shape_node, side, target), 1)
                 # set driven key at value in dictionary
-                mc.setDrivenKeyframe(
+                cmds.setDrivenKeyframe(
                     '{}.{}_{}'.format(blend_shape_node, side, target),
                     currentDriver='{}_{}.{}'.format(
                         side,
@@ -323,14 +325,14 @@ class Utilities(tpProject.Project):
                 )
 
                 # set control rotation to 0
-                mc.setAttr(
+                cmds.setAttr(
                     '{side}_{control}.{attr}'.format(
                         side=side,
                         control=control_name,
                         attr=eyes_targets_data_set[target]['attribute']),
                     0)
                 # set blendShape target weight to 0
-                mc.setAttr('{}.{}_{}'.format(blend_shape_node, side, target), 0)
+                cmds.setAttr('{}.{}_{}'.format(blend_shape_node, side, target), 0)
 
     def om_export_skin_weights(self,
                                geo_list=None,
@@ -348,15 +350,15 @@ class Utilities(tpProject.Project):
         """
         # skinCluster node name
         if not geo_list:
-            geo_list = mc.ls(selection=True)
+            geo_list = cmds.ls(selection=True)
 
         if not dir_path:
             # pop up file dialog and prompt user
-            start_dir = mc.workspace(q=True, rootDirectory=True)
-            file_path = mc.fileDialog2(dialogStyle=2,
-                                       fileMode=0,
-                                       startingDirectory=start_dir,
-                                       fileFilter='Skin Files (*%s)' % '.json')[0]
+            start_dir = cmds.workspace(q=True, rootDirectory=True)
+            file_path = cmds.fileDialog2(dialogStyle=2,
+                                         fileMode=0,
+                                         startingDirectory=start_dir,
+                                         fileFilter='Skin Files (*%s)' % '.json')[0]
 
             file_name_and_extension = file_path.split('/')[-1]
             file_name = file_name_and_extension.split('.')[0]
@@ -435,9 +437,9 @@ class Utilities(tpProject.Project):
 
         else:
             # pop up file dialog and prompt user
-            start_dir = mc.workspace(q=True, rootDirectory=True)
+            start_dir = cmds.workspace(q=True, rootDirectory=True)
 
-            import_path_file_list = mc.fileDialog2(
+            import_path_file_list = cmds.fileDialog2(
                 dialogStyle=2,
                 fileMode=1,
                 startingDirectory=start_dir,
@@ -456,11 +458,11 @@ class Utilities(tpProject.Project):
             geo_skin_data = skin_weights_file_data[geo_name]
             node = geo_skin_data['name']
             joints = geo_skin_data['weights'].keys()
-            mc.skinCluster(joints,
-                           geo_name,
-                           toSelectedBones=True,
-                           normalizeWeights=2,  # interactive
-                           name=geo_skin_data['name'])
+            cmds.skinCluster(joints,
+                             geo_name,
+                             toSelectedBones=True,
+                             normalizeWeights=2,  # interactive
+                             name=geo_skin_data['name'])
 
             # get skinCluster MObject
             selection_list = OpenMaya.MSelectionList()
@@ -527,8 +529,8 @@ class Utilities(tpProject.Project):
         :return:
         """
 
-        fk_joint_root = mc.ls(sl=1)[0]
-        fk_joint_children = mc.listRelatives(fk_joint_root, allDescendents=True, children=True)
+        fk_joint_root = cmds.ls(sl=1)[0]
+        fk_joint_children = cmds.listRelatives(fk_joint_root, allDescendents=True, children=True)
         fk_joint_list = [fk_joint_root] + fk_joint_children
 
         control_hierarchy_dict = {}
@@ -542,7 +544,7 @@ class Utilities(tpProject.Project):
             control.add_offset_grp()
             control.top_group_match_position(jnt, t=True, r=True)
 
-            parent_jnt = mc.listRelatives(jnt, parent=True)
+            parent_jnt = cmds.listRelatives(jnt, parent=True)
 
             if parent_jnt:
                 parent_control = parent_jnt[0].replace('jnt', 'ctrl')
@@ -552,8 +554,7 @@ class Utilities(tpProject.Project):
                 root_ctrl = control
 
         for ctrl in control_hierarchy_dict:
-            mc.parent(ctrl.get_top_group(), control_hierarchy_dict[ctrl])
+            cmds.parent(ctrl.get_top_group(), control_hierarchy_dict[ctrl])
             ctrl.constraint_target(ctrl.get_name().replace('ctrl', 'jnt'), mo=True)
 
         root_ctrl.constraint_target(fk_joint_root, mo=True)
-
